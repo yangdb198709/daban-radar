@@ -308,7 +308,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v8.1</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v8.2</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -637,7 +637,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v8.1</b>（2026-09-20 更新）· 风险标注 · 卖点提示 · 周对比 · 一键生成图· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v8.2</b>（2026-09-20 更新）· 风险标注 · 卖点提示 · 周对比 · 一键生成图(长按保存)· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -1104,13 +1104,19 @@ async function generateShot(){
     if(!el || !el.children.length){ alert("当前无推荐内容可截图"); return; }
     const btn = event.target; btn.innerText="生成中..."; btn.style.pointerEvents="none";
     const canvas = await html2canvas(el, {backgroundColor:"#14151a", scale:2, useCORS:true});
-    const link = document.createElement("a");
-    const d = new Date();
-    link.download = "打板推荐_"+d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()+".png";
-    link.href = canvas.toDataURL("image/png");
-    link.click();
+    const dataUrl = canvas.toDataURL("image/png");
+    // 移除旧预览
+    const old = document.getElementById("shotPreview");
+    if(old) old.remove();
+    // 插入预览区
+    const box = document.createElement("div");
+    box.id = "shotPreview";
+    box.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.92);z-index:9999;overflow:auto;padding:16px;text-align:center";
+    box.innerHTML = '<div style="color:#fff;font-size:15px;font-weight:700;margin-bottom:10px">✅ 图片已生成 · 长按图片保存或转发</div>'+
+      '<img src="'+dataUrl+'" style="max-width:100%;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.5)"/>'+
+      '<div style="margin-top:14px"><button onclick="document.getElementById(\'shotPreview\').remove()" style="padding:10px 30px;background:#5b8cff;color:#fff;border:none;border-radius:20px;font-size:15px;font-weight:700">关闭</button></div>';
+    document.body.appendChild(box);
     btn.innerText="📸 生成图片发微信"; btn.style.pointerEvents="auto";
-    alert("图片已下载到手机相册，直接发微信即可");
   }catch(e){ alert("生成失败："+e.message); }
 }
 
