@@ -308,7 +308,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v9.1</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v10</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -329,6 +329,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   <!-- ===== Tab 导航 ===== -->
   <nav class="tabs" id="tabs">
     <button class="tab on" data-view="recommend">综合推荐<span class="cnt" id="cntRec">-</span></button>
+    <button class="tab" data-view="auction">9:25竞价<span class="cnt" id="cntAuc">-</span></button>
     <button class="tab" data-view="shouban">首板<span class="cnt" id="cntSb">-</span></button>
     <button class="tab" data-view="lianban">连板<span class="cnt" id="cntLb">-</span></button>
     <button class="tab" data-view="longtou">龙头<span class="cnt" id="cntLt">-</span></button>
@@ -350,6 +351,30 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
       推荐基于封板时间、封单强度、炸板次数、换手、市值、板块效应、成交额等硬性条件量化评分，供盘前计划与盘中参考；题材归类以行业板块近似。不构成投资建议。
     </div>
+  </section>
+
+  <!-- ===== v10 9:25 竞价观察名单（只筛不买） ===== -->
+  <section class="view" id="view-auction" hidden>
+    <div class="panel" style="border-color:var(--gold);background:linear-gradient(135deg,var(--panel2),var(--panel))">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:15px;font-weight:900;color:var(--gold)">📡 9:25 竞价观察名单</span>
+        <span style="font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;background:var(--gold-bg);color:var(--gold)">数据源验证中 · 免费接口9:25数据需实测</span>
+        <span id="aucPhase" style="font-size:11px;color:var(--text3)"></span>
+        <div style="flex:1"></div>
+        <button class="mini-btn" onclick="refreshAuction()" style="padding:6px 14px;border-radius:8px;border:1px solid var(--line2);background:var(--panel3);color:var(--text);font-weight:700;cursor:pointer">🔄 刷新竞价</button>
+      </div>
+      <div style="margin-top:12px;padding:11px 13px;border-radius:10px;background:var(--up-bg);border:1px solid var(--up);font-size:12.5px;line-height:1.85;color:var(--text)">
+        <b style="color:var(--up)">⚠️ 只筛不买，不在集合竞价下单。</b>本名单依据昨日涨停股的<b>竞价开盘涨幅 / 量比 / 连板身位 / 昨换手</b>，在9:25提前锁定今日盯盘目标（回测：平开/小低开的换手龙次日冲高率约94%，高开≥7%仅76%）。<b style="color:var(--down)">真正买入仍要等9:30后该股封板、且「综合推荐」评分≥85</b>，两道关都过才出手。
+      </div>
+      <div id="aucStatus" style="margin-top:10px;font-size:12px;color:var(--text3)"></div>
+    </div>
+    <div class="sec-label">⭐ 重点观察（2-3板换手龙身位 · 竞价平开/小低开 -2%~+5% · 昨换手健康）</div>
+    <div class="grid cards" id="aucCore"></div>
+    <div class="sec-label">👀 一般观察（首板身位 或 竞价 5%-7%，需更强确认）</div>
+    <div class="grid cards" id="aucWatch"></div>
+    <div class="sec-label">🚫 竞价排除（一字排不进 / 高开≥7%不追 / 换手异常）</div>
+    <div class="grid cards" id="aucSkip"></div>
+    <div class="notice">竞价数据来自东方财富公开行情接口（约10秒延迟）。9:15-9:25为虚拟撮合、价格会变，<b>9:25定稿</b>后才可靠；量比(f10)在开盘前后可能缺失，缺失时不做量比判定。本模块为v10新增，<b>数据源准确性请以周一(9/21)实测为准</b>，不构成投资建议。</div>
   </section>
 
   <!-- ===== 首板 ===== -->
@@ -637,7 +662,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v9.1</b>（2026-09-20 更新）· 换手评分平滑化（最高93分，极端缩量降分）· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v10</b>（2026-09-20 更新）· 新增9:25竞价观察名单（只筛不买，封板+评分≥85两道关）· 换手评分平滑化· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -738,7 +763,7 @@ const state = {
 };
 
 /* ===== v5 版本与节前因子 ===== */
-const APP_VER = "v6";
+const APP_VER = "v10";
 const APP_VER_DATE = "2026-09-20";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -1835,6 +1860,7 @@ function renderAllViews(){
   else if (state.view === "yesterday") renderYesterday();
   else if (state.view === "history") renderHistory();
   else if (state.view === "study") renderStudy();
+  else if (state.view === "auction") renderAuction();
 }
 
 /* ===== 个股详情 ===== */
@@ -1991,6 +2017,104 @@ function drawTrend(stk){
   }).catch(() => {});
 }
 
+/* ===== v10 9:25 竞价观察名单 ===== */
+function auctionPhase(){
+  const n = new Date();
+  const w = n.getDay(); if (w === 0 || w === 6) return { key:"weekend", label:"周末休市", trade:false };
+  const mins = n.getHours()*60 + n.getMinutes();
+  if (mins < 9*60+15) return { key:"pre", label:"盘前 · 竞价尚未开始（9:15开始）", trade:true };
+  if (mins < 9*60+25) return { key:"ing", label:"竞价进行中 · 虚拟撮合价格会变，9:25定稿", trade:true };
+  if (mins < 9*60+30) return { key:"lock", label:"9:25 竞价已定稿 ✓", trade:true };
+  if (mins < 15*60) return { key:"intraday", label:"盘中 · 名单转为盯盘清单，封板请看综合推荐评分", trade:true };
+  return { key:"closed", label:"已收盘 · 显示的是今日开盘竞价结果", trade:false };
+}
+async function loadAuctionWatch(){
+  const date = prevTradeDate();
+  const pool = await loadZTPool(date);
+  if (!pool || !pool.length) return { date, rows:[] };
+  const focus = pool.filter(s => s.lbc >= 1 && s.lbc <= 3).slice(0, 120);
+  const rows = [];
+  for (let i = 0; i < focus.length; i += 40){
+    const batch = focus.slice(i, i+40);
+    const secids = batch.map(secidOf).join(",");
+    try{
+      const j = await jfetch(`${API.ulist}?fltt=2&invt=2&secids=${secids}&fields=f2,f3,f8,f10,f12,f14,f17,f18`);
+      const diff = (j && j.data && j.data.diff) || [];
+      const by = {}; diff.forEach(d => by[d.f12] = d);
+      batch.forEach(s => {
+        const d = by[s.code]; if (!d) return;
+        const open = d.f17 || 0, pre = d.f18 || 0;
+        const ag = pre > 0 ? (open/pre - 1)*100 : (d.f3 || 0);
+        rows.push({ code:s.code, name:s.name, lbc:s.lbc, hs:s.hs, fund:s.fund, hybk:s.hybk,
+          ag, vr:d.f10 || 0, open, pre, nowPct:d.f3 || 0, price:d.f2 || 0, hasOpen: open > 0 });
+      });
+    }catch(e){}
+  }
+  return { date, rows };
+}
+function aucClassify(r){
+  // r: 昨日涨停股 + 今日竞价
+  if (!r.hasOpen) return { tier:"wait", reason:"竞价数据未出" };
+  if (r.ag >= 9.95) return { tier:"skip", reason:"一字/T字封死，9:25排不进，放弃" };
+  if (r.ag >= 7) return { tier:"skip", reason:"竞价高开≥7%（回测冲高率仅76%），不追" };
+  const healthy = r.hs >= 3 && r.hs <= 35;
+  if (!healthy) return { tier:"skip", reason:"昨换手" + (r.hs<3?"过低("+r.hs.toFixed(1)+"%)":"过高("+r.hs.toFixed(1)+"%)") + "，不健康" };
+  const coreBody = r.lbc >= 2 && r.lbc <= 3 && r.ag >= -2 && r.ag < 5;
+  if (coreBody) return { tier:"core", reason:(r.lbc===2?"3板":"4板")+"换手龙身位 · 竞价" + (r.ag>=0?"+":"") + r.ag.toFixed(2) + "%（最优区间）" };
+  if (r.ag >= 5 && r.ag < 7) return { tier:"watch", reason:"竞价" + r.ag.toFixed(2) + "%偏高（回测90.8%），需更强封板确认" };
+  if (r.lbc === 1) return { tier:"watch", reason:"首板身位（博2板，回测胜率偏低），谨慎" };
+  if (r.ag < -2) return { tier:"watch", reason:"竞价低开" + r.ag.toFixed(2) + "%，观察是否弱转强" };
+  return { tier:"watch", reason:"竞价" + r.ag.toFixed(2) + "%，一般观察" };
+}
+function aucCard(r, cls){
+  const sealed = (state.zt || []).some(s => s.code === r.code);
+  const agColor = r.ag >= 7 ? "var(--up)" : (r.ag < 0 ? "var(--down)" : "var(--up)");
+  const border = cls.tier==="core" ? "1.5px solid var(--down)" : (cls.tier==="skip" ? "1px solid var(--line)" : "1px solid var(--gold)");
+  const op = cls.tier==="skip" ? "0.62" : "1";
+  let sealTag = "";
+  if (sealed) sealTag = '<span class="tag" style="background:var(--down-bg);color:var(--down)">✓已封板·去综合推荐看评分≥85</span>';
+  else if (cls.tier==="core") sealTag = '<span class="tag" style="background:var(--blue-bg);color:var(--blue)">待封板确认</span>';
+  return '<div class="rcard" data-code="'+r.code+'" style="border:'+border+';opacity:'+op+'">'
+    + '<div class="top"><div style="flex:1">'
+    + '<div class="name">'+esc(r.name)+' <span class="code">'+r.code+'</span></div>'
+    + '<div class="tags">'
+    + '<span class="tag '+(r.lbc>=2?'m-lianban':'m-shouban')+'">'+r.lbc+'板→'+(r.lbc+1)+'板</span>'
+    + '<span class="tag lbc">昨换手 '+r.hs.toFixed(1)+'%</span>'
+    + (r.vr>0 ? '<span class="tag lbc">量比 '+r.vr.toFixed(2)+'</span>' : '')
+    + sealTag
+    + '</div></div>'
+    + '<div style="text-align:right"><div style="font-size:22px;font-weight:900;color:'+agColor+'">'+(r.hasOpen?(r.ag>=0?"+":"")+r.ag.toFixed(2)+"%":"--")+'</div><div style="font-size:10px;color:var(--text3)">竞价涨幅</div></div>'
+    + '</div>'
+    + '<div class="stats"><span>板块 <b>'+esc(r.hybk||'其他')+'</b></span><span>封单 <b>'+fmtNum(r.fund)+'</b></span><span>现价 <b>'+(r.price?r.price.toFixed(2):'--')+'</b></span></div>'
+    + '<div class="reasons"><div class="reason"><span class="'+(cls.tier==="skip"?"bad":(cls.tier==="core"?"ok":"warn"))+'">●</span><span>'+esc(cls.reason)+'</span></div></div>'
+    + '</div>';
+}
+async function renderAuction(){
+  const ph = auctionPhase();
+  const elPhase = $("#aucPhase"), elStatus = $("#aucStatus");
+  if (elPhase) elPhase.textContent = "· " + ph.label;
+  const core = $("#aucCore"), watch = $("#aucWatch"), skip = $("#aucSkip");
+  if (!core) return;
+  if (!state.auction){
+    core.innerHTML = watch.innerHTML = skip.innerHTML = "";
+    if (elStatus) elStatus.textContent = "正在采集昨日涨停股的今日竞价数据…";
+    try{ state.auction = await loadAuctionWatch(); }catch(e){ if(elStatus) elStatus.textContent = "竞价数据采集失败（接口超时或非交易时段），可点右上角重试。"; return; }
+  }
+  const a = state.auction;
+  if (!a || !a.rows.length){ if(elStatus) elStatus.textContent = "昨日涨停池暂无数据（盘后/节假日接口可能未推送）。"; return; }
+  const groups = { core:[], watch:[], skip:[], wait:[] };
+  a.rows.forEach(r => { const c = aucClassify(r); r._c = c; (groups[c.tier]||groups.watch).push(r); });
+  groups.core.sort((x,y)=> y.lbc-x.lbc || Math.abs(x.ag)-Math.abs(y.ag));
+  groups.watch.sort((x,y)=> y.lbc-x.lbc);
+  groups.skip.sort((x,y)=> y.ag-x.ag);
+  core.innerHTML = groups.core.length ? groups.core.map(r=>aucCard(r,r._c)).join("") : '<div style="grid-column:1/-1;font-size:12.5px;color:var(--text3);padding:14px">暂无符合「换手龙+平开/小低开」的重点标的——竞价不理想就空仓，不勉强。</div>';
+  watch.innerHTML = groups.watch.length ? groups.watch.map(r=>aucCard(r,r._c)).join("") : '<div style="grid-column:1/-1;font-size:12px;color:var(--text3);padding:10px">无</div>';
+  skip.innerHTML = groups.skip.length ? groups.skip.map(r=>aucCard(r,r._c)).join("") : '<div style="grid-column:1/-1;font-size:12px;color:var(--text3);padding:10px">无</div>';
+  const cnt = $("#cntAuc"); if (cnt) cnt.textContent = groups.core.length;
+  if (elStatus) elStatus.innerHTML = "基准：<b>"+String(a.date).slice(0,4)+"-"+String(a.date).slice(4,6)+"-"+String(a.date).slice(6,8)+"</b> 昨日涨停池 "+a.rows.length+" 只（1-3板）｜重点 <b style='color:var(--down)'>"+groups.core.length+"</b> · 一般 "+groups.watch.length+" · 排除 "+groups.skip.length+"　|　纪律：竞价只看不买，封板+评分≥85才出手";
+}
+async function refreshAuction(){ state.auction = null; await renderAuction(); }
+
 /* ===== 视图切换与事件 ===== */
 function switchView(v){
   state.view = v;
@@ -2119,6 +2243,9 @@ async function init(){
   schedule();
   // 优先加载昨日复盘（盘中 KPI 的溢价/晋级率也依赖它）
   loadYesterday().then(y => { state.yest = y; renderAllViews(); }).catch(() => {});
+  // v10 竞价名单：进入页面即加载，9:15-15:00 每60秒自动刷新
+  renderAuction().catch(()=>{});
+  setInterval(() => { if (state.view === "auction") refreshAuction().catch(()=>{}); }, 60*1000);
   await refresh();
   if (isTradeTime()){
     // 盘中每 5 分钟刷新一次昨日溢价数据
