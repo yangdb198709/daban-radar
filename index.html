@@ -241,6 +241,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .toast.t-down .ic{background:var(--down-bg);color:var(--down)}
 .toast.t-gold .ic{background:var(--gold-bg);color:var(--gold)}
 @keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+.sinp{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px;font-size:12.5px}
+.btnv{height:34px;border-radius:8px;border:1px solid var(--line2);background:var(--panel);color:var(--text);font-size:12.5px;padding:0 12px;cursor:pointer}
+.btnv:hover{border-color:var(--gold);color:var(--gold)}
+.btnv.gold{border-color:var(--gold);color:var(--gold);background:var(--gold-bg)}
+.study-row{display:flex;gap:10px;align-items:center;padding:9px 8px;border-bottom:1px solid var(--line);font-size:12.5px;flex-wrap:wrap}
 
 /* ============ 筛选工具条 ============ */
 .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
@@ -328,6 +333,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
     <button class="tab" data-view="yesterday">昨日表现</button>
     <button class="tab" data-view="history">历史数据<span class="cnt" id="cntHis">-</span></button>
     <button class="tab" data-view="guide">操作指南</button>
+    <button class="tab" data-view="study">策略研究<span class="cnt" id="cntStudy">-</span></button>
   </nav>
 
   <!-- ===== 综合推荐 ===== -->
@@ -582,8 +588,51 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </aside>
 
+<section class="view" id="view-study" hidden>
+  <div class="grid cols-4" id="studyKpi"></div>
+  <div class="grid cols-2">
+    <div class="panel">
+      <div class="panel-title"><span class="bar"></span>记录出手（交易复盘）</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px">
+        <input id="tDate" type="date" class="sinp">
+        <input id="tCode" type="text" placeholder="股票代码 如001216" class="sinp">
+        <input id="tName" type="text" placeholder="名称" class="sinp">
+        <input id="tBuyP" type="number" step="0.01" placeholder="买入价" class="sinp">
+        <input id="tBuyT" type="time" placeholder="买入时间" class="sinp">
+        <input id="tSellP" type="number" step="0.01" placeholder="卖出价(留空=持仓)" class="sinp">
+        <input id="tSellT" type="time" placeholder="卖出时间" class="sinp">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btnv" id="btnAddTrade">+ 记录这笔出手</button>
+        <button class="btnv gold" id="btnSnap">📸 记录今日推荐池快照</button>
+        <button class="btnv" id="btnExport">💾 保存到 daban-data.json</button>
+        <button class="btnv" id="btnImportFile">📂 从文件读入</button>
+        <input type="file" id="importFile" accept=".json" hidden>
+      </div>
+      <div style="font-size:11.5px;color:var(--text3);margin-top:8px;line-height:1.7">数据自动存在本机浏览器（localStorage）；换设备用「导出备份」存到微信/文件，新设备「导入备份」即可迁移。记录买入时会自动关联当时快照里该股票的雷达评分。</div>
+    </div>
+    <div class="panel">
+      <div class="panel-title"><span class="bar"></span>怎么用这套记录</div>
+      <div style="font-size:12.5px;color:var(--text2);line-height:2">
+        <b style="color:var(--text)">① 盘中</b>：在「综合推荐」看到达标股封板买入后，切到这里记录买入（代码+买入价+时间）。<br>
+        <b style="color:var(--text)">② 次日冲高卖出</b>：回来补上卖出价和时间，系统自动算盈亏%。<br>
+        <b style="color:var(--text)">③ 长期验证</b>：顶部「雷达评分 vs 实际」就是这套雷达准不准的答案——评分高的是不是真的涨得多。<br>
+        <b style="color:var(--gold)">📸 快照</b>：收盘后点一下，存下当天雷达推荐池做底稿。<br>
+        <b style="color:var(--gold)">💾 数据跟着文件夹走</b>：记完点「保存」生成 <b>daban-data.json</b> 放进本文件夹；升级到 v8 时把整个文件夹复制成 v8，打开后自动读入，数据不丢。换电脑同理。
+      </div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:12px">
+    <div class="panel-title"><span class="bar"></span>我的出手记录</div>
+    <div id="studyList"></div>
+  </div>
+  <div class="panel" style="margin-top:12px">
+    <div class="panel-title"><span class="bar"></span>推荐池快照存档</div>
+    <div id="studySnaps"></div>
+  </div>
+</section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v6</b>（2026-09-20 更新）· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v7</b>（2026-09-20 更新）· 策略研究记录模块· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -1097,6 +1146,7 @@ function renderRecommend(){
       });
     }
     state.lastRecCodes = recSet;
+    state.recPool = recs;
   }
 
   $("#recLabel").innerHTML = `今日打板推荐<span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px">达标线 ${effectivePass()}%：达标 <b style="color:var(--down)">${qualified.length}</b> 家 · 候选 <b style="color:#FAAD14">${candidates.length}</b> 家（≥90%）· 不达标宁可空仓${!qualified.length ? ' <b style="color:#FAAD14">⚠今日无达标，候选仅供灵活参考</b>' : ""}</span>`;
@@ -1505,7 +1555,101 @@ function renderHistory(){
     </tr>`).join("") || `<tr><td colspan="4" class="empty">暂无数据</td></tr>`;
 }
 
+/* ===== v7 策略研究记录 ===== */
+const STUDY_KEY = "daban_study_v7";
+function loadStudy(){ try{ const d = JSON.parse(localStorage.getItem(STUDY_KEY)); return (d && d.trades) ? d : {trades:[], snaps:[]}; }catch(e){ return {trades:[], snaps:[]}; } }
+function saveStudy(d){ try{ localStorage.setItem(STUDY_KEY, JSON.stringify(d)); }catch(e){} }
+function studyDateStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function calcPct(t){ return (parseFloat(t.sellP)-parseFloat(t.buyP))/parseFloat(t.buyP)*100; }
+function delTrade(i){ const db=loadStudy(); db.trades.splice(i,1); saveStudy(db); renderStudy(); }
+function delSnap(i){ const db=loadStudy(); db.snaps.splice(i,1); saveStudy(db); renderStudy(); }
+
+function renderStudy(){
+  const db = loadStudy();
+  const closed = db.trades.filter(t => t.sellP != null && t.sellP !== "");
+  const wins = closed.filter(t => t.sellP != null && t.sellP !== "" && calcPct(t) > 0);
+  const winRate = closed.length ? Math.round(wins.length/closed.length*100) : 0;
+  const avgPct = closed.length ? (closed.reduce((s,t)=>s+calcPct(t),0)/closed.length).toFixed(1) : "0.0";
+  const scC = closed.filter(t => t.radarScore != null);
+  const radarAvg = scC.length ? (scC.reduce((s,t)=>s+t.radarScore,0)/scC.length).toFixed(1) : "-";
+  const realAvg = scC.length ? (scC.reduce((s,t)=>s+calcPct(t),0)/scC.length).toFixed(1) : "-";
+  $("#studyKpi").innerHTML =
+    '<div class="his-stat"><div class="k-label">累计出手</div><div class="v" style="font-size:18px">'+db.trades.length+' <span style="font-size:11px;color:var(--text3)">笔</span></div><div class="s">已平仓 '+closed.length+' · 持仓 '+(db.trades.length-closed.length)+'</div></div>'+
+    '<div class="his-stat"><div class="k-label">我的胜率</div><div class="v up-c tnum">'+winRate+'%</div><div class="s">'+wins.length+'/'+closed.length+' 笔盈利</div></div>'+
+    '<div class="his-stat"><div class="k-label">平均每笔盈亏</div><div class="v tnum" style="color:'+(parseFloat(avgPct)>=0?'var(--up)':'var(--down)')+'">'+avgPct+'%</div><div class="s">已平仓平均</div></div>'+
+    '<div class="his-stat"><div class="k-label">雷达评分 vs 实际</div><div class="v tnum" style="font-size:15px">'+radarAvg+' → '+realAvg+'%</div><div class="s">评分均 → 实际均（验证准度）</div></div>';
+  $("#studyList").innerHTML = db.trades.slice().reverse().map((t,i) => {
+    const ri = db.trades.length-1-i;
+    const pct = (t.sellP != null && t.sellP !== "") ? calcPct(t) : null;
+    const cls = pct==null ? "" : (pct>=0 ? "up-c" : "down-c");
+    return '<div class="study-row"><b style="min-width:88px">'+esc(t.date)+'</b>'+
+      '<b style="min-width:140px">'+esc(t.name||"")+' <span class="cd tnum">'+esc(t.code)+'</span></b>'+
+      '<span class="tnum" style="min-width:150px">买 '+t.buyP+' @'+esc(t.buyT||"-")+'</span>'+
+      '<span class="tnum" style="min-width:150px">卖 '+(t.sellP!=null&&t.sellP!==""?t.sellP:"持仓")+(t.sellT?" @"+esc(t.sellT):"")+'</span>'+
+      '<span class="tnum" style="min-width:80px;color:'+(t.radarScore!=null?'var(--gold)':'var(--text3)')+'">雷达 '+(t.radarScore!=null?t.radarScore:"-")+'分</span>'+
+      '<b class="tnum '+cls+'" style="min-width:60px">'+(pct==null?"-":(pct>=0?"+":"")+pct.toFixed(1)+"%")+'</b>'+
+      '<button class="fbtn" style="margin-left:auto" onclick="delTrade('+ri+')">删</button></div>';
+  }).join("") || '<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">还没有出手记录，第一笔出手后这里就是你的策略数据库。</div>';
+  $("#studySnaps").innerHTML = db.snaps.slice().reverse().map((sn,i) => {
+    const ri = db.snaps.length-1-i;
+    return '<div class="study-row"><b>'+esc(sn.date)+' '+esc(sn.time||"")+'</b> <span class="cd">达标线 '+sn.pass+'%</span>'+
+      '<button class="fbtn" style="margin-left:auto" onclick="delSnap('+ri+')">删</button>'+
+      '<div style="width:100%;margin-top:4px;color:var(--text2)">'+(sn.items||[]).map(it=>'<span class="his-tag">'+esc(it.name)+' '+it.score+'分</span>').join(" ")+'</div></div>';
+  }).join("") || '<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">还没有快照存档。盘中点「📸 记录今日推荐池快照」即可留底稿。</div>';
+}
+
+function bindStudy(){
+  const td = $("#tDate"); if (td) td.value = studyDateStr();
+  const b1 = $("#btnAddTrade");
+  if (b1) b1.onclick = function(){
+    const code = $("#tCode").value.trim();
+    if (!code || !$("#tBuyP").value) { alert("请至少填「股票代码」和「买入价」"); return; }
+    const db = loadStudy();
+    let radarScore = null;
+    for (let i=db.snaps.length-1; i>=0; i--){ const it=(db.snaps[i].items||[]).find(x=>x.code===code); if(it){ radarScore=it.score; break; } }
+    db.trades.push({ date:$("#tDate").value, code:code, name:$("#tName").value.trim(), buyP:parseFloat($("#tBuyP").value), buyT:$("#tBuyT").value, sellP:$("#tSellP").value?parseFloat($("#tSellP").value):null, sellT:$("#tSellT").value||null, radarScore:radarScore });
+    saveStudy(db); renderStudy();
+    ["tName","tBuyP","tBuyT","tSellP","tSellT"].forEach(function(id){ const el=$("#"+id); if(el) el.value=""; });
+  };
+  const b2 = $("#btnSnap");
+  if (b2) b2.onclick = function(){
+    if (!state.recPool || !state.recPool.length) { alert("请先打开「综合推荐」让推荐数据加载出来，再回来点快照。"); return; }
+    const db = loadStudy();
+    db.snaps.push({ date: studyDateStr(), time: new Date().toTimeString().slice(0,5), pass: effectivePass(), items: state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode]}; }) });
+    saveStudy(db); renderStudy();
+  };
+  const b3 = $("#btnExport");
+  if (b3) b3.onclick = function(){
+    const blob = new Blob([JSON.stringify(loadStudy(),null,2)], {type:"application/json"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "daban-data.json"; a.click();
+  };
+  const b4 = $("#btnImportFile");
+  if (b4) b4.onclick = function(){ $("#importFile").click(); };
+  const fi = $("#importFile");
+  if (fi) fi.onchange = function(e){
+    const f = e.target.files[0]; if(!f) return;
+    const rd = new FileReader();
+    rd.onload = function(){ try{ const imp = JSON.parse(rd.result); const cur = loadStudy(); cur.trades = (imp.trades||[]).concat(cur.trades); cur.snaps = (imp.snaps||[]).concat(cur.snaps); saveStudy(cur); renderStudy(); alert("导入成功"); }catch(err){ alert("文件格式不对"); } };
+    rd.readAsText(f);
+  };
+}
+
 /* ===== 提醒系统 ===== */
+async function autoLoadDataFile(){
+  try{
+    const r = await fetch("daban-data.json", {cache:"no-store"});
+    if (!r.ok) return;
+    const imp = await r.json();
+    if (!imp || !imp.trades) return;
+    const cur = loadStudy();
+    // 文件是最新保存的，以文件为准覆盖本机缓存
+    if (imp.trades.length + imp.snaps.length >= cur.trades.length + cur.snaps.length){
+      try{ localStorage.setItem(STUDY_KEY, JSON.stringify(imp)); }catch(e){}
+      if (state.view === "study") renderStudy();
+    }
+  }catch(e){ /* file:// 或无此文件，静默用本机缓存 */ }
+}
+
 function toast(type, title, msg){
   const wrap = $("#toastWrap");
   const el = document.createElement("div");
@@ -1621,6 +1765,7 @@ function renderAllViews(){
   else if (state.view === "sector") renderSector();
   else if (state.view === "yesterday") renderYesterday();
   else if (state.view === "history") renderHistory();
+  else if (state.view === "study") renderStudy();
 }
 
 /* ===== 个股详情 ===== */
@@ -1897,6 +2042,8 @@ function schedule(){
 /* ===== 初始化 ===== */
 async function init(){
   bindEvents();
+  bindStudy();
+  autoLoadDataFile();
   $("#btnSound").classList.add("active");
   tickClock();
   setInterval(tickClock, 1000);
