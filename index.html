@@ -246,6 +246,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .btnv:hover{border-color:var(--gold);color:var(--gold)}
 .btnv.gold{border-color:var(--gold);color:var(--gold);background:var(--gold-bg)}
 .study-row{display:flex;gap:10px;align-items:center;padding:9px 8px;border-bottom:1px solid var(--line);font-size:12.5px;flex-wrap:wrap}
+.risk-line{margin-top:6px;padding:5px 8px;border-radius:7px;background:rgba(250,173,20,.12);border:1px solid rgba(250,173,20,.45);color:#FAAD14;font-size:11.5px;font-weight:700;line-height:1.5}
+.rcard .price{font-size:21px !important;font-weight:900}
+.rcard .win-badge{font-size:13px !important;padding:3px 9px !important;font-weight:900}
+.rcard .score-ring .num{font-size:23px !important}
 
 /* ============ 筛选工具条 ============ */
 .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
@@ -303,7 +307,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v7</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v8</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -632,7 +636,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v7</b>（2026-09-20 更新）· 策略研究记录模块· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v8</b>（2026-09-20 更新）· 风险标注 · 卖点提示 · 周对比· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -1206,6 +1210,11 @@ function renderRecommend(){
           : '<span class="win-badge" style="background:#FAAD14;color:#1A1B1C;border:none;box-shadow:0 1px 4px rgba(250,173,20,.45)">' + x.hq.hit.w2 + '% 候选</span>';
         const reasonHtml = x.sc.reasons.map(r =>
           `<div class="reason"><span class="${r.ok ? "ok" : r.bad ? "bad" : r.warn ? "warn" : "t"}">${r.ok ? "✓" : r.bad ? "✕" : r.warn ? "!" : "·"}</span><span class="t">${r.txt}</span></div>`).join("");
+        const riskTags = [];
+        if (state.zb.some(z => z.code === s.code)) riskTags.push("昨日炸板过");
+        if (s.lbc >= 4) riskTags.push("已是" + s.lbc + "连板高位");
+        if ((s.zbc || 0) >= 1) riskTags.push("今日" + (s.zbc + 1) + "次封板");
+        const riskHtml = riskTags.length ? '<div class="risk-line">⚠️ ' + riskTags.join(" · ") + '（标注提示，不影响评分）</div>' : "";
         return `
         <div class="rcard" data-code="${s.code}">
           <div class="rank">#${i+1}</div>
@@ -1226,6 +1235,7 @@ function renderRecommend(){
             <span>${esc(s.hybk)} <b class="tnum">${x.sc.secCount}家</b></span>
           </div>
           <div class="hit-line" style="color:${x.hq.pass ? "" : "#FAAD14"}">历史打板成功率 <b>${x.hq.hit.w2}%</b><span style="color:var(--text3)">（样本 ${x.hq.hit.n} 次 · ${esc(x.hq.hit.label)}）</span> · 隔日收盘盈利 ${x.hq.hit.w1}%</div>
+          ${riskHtml}
           <div class="reasons">${reasonHtml}</div>
         </div>`;
       }).join("");
@@ -1573,16 +1583,22 @@ function renderStudy(){
   const scC = closed.filter(t => t.radarScore != null);
   const radarAvg = scC.length ? (scC.reduce((s,t)=>s+t.radarScore,0)/scC.length).toFixed(1) : "-";
   const realAvg = scC.length ? (scC.reduce((s,t)=>s+calcPct(t),0)/scC.length).toFixed(1) : "-";
-  $("#studyKpi").innerHTML =
-    '<div class="his-stat"><div class="k-label">累计出手</div><div class="v" style="font-size:18px">'+db.trades.length+' <span style="font-size:11px;color:var(--text3)">笔</span></div><div class="s">已平仓 '+closed.length+' · 持仓 '+(db.trades.length-closed.length)+'</div></div>'+
+  var now0 = new Date(), weekAgo = now0.getTime() - 7*86400000;
+  var wkTrades = db.trades.filter(function(t){ return new Date(t.date).getTime() >= weekAgo; });
+  var wkClosed = wkTrades.filter(function(t){ return t.sellP != null && t.sellP !== ""; });
+  var wkWins = wkClosed.filter(function(t){ return calcPct(t) > 0; });
+  var wkRate = wkClosed.length ? Math.round(wkWins.length/wkClosed.length*100) : 0;
+  $("#studyKpi").innerHTML =    '<div class="his-stat"><div class="k-label">累计出手</div><div class="v" style="font-size:18px">'+db.trades.length+' <span style="font-size:11px;color:var(--text3)">笔</span></div><div class="s">已平仓 '+closed.length+' · 持仓 '+(db.trades.length-closed.length)+'</div></div>'+
     '<div class="his-stat"><div class="k-label">我的胜率</div><div class="v up-c tnum">'+winRate+'%</div><div class="s">'+wins.length+'/'+closed.length+' 笔盈利</div></div>'+
     '<div class="his-stat"><div class="k-label">平均每笔盈亏</div><div class="v tnum" style="color:'+(parseFloat(avgPct)>=0?'var(--up)':'var(--down)')+'">'+avgPct+'%</div><div class="s">已平仓平均</div></div>'+
-    '<div class="his-stat"><div class="k-label">雷达评分 vs 实际</div><div class="v tnum" style="font-size:15px">'+radarAvg+' → '+realAvg+'%</div><div class="s">评分均 → 实际均（验证准度）</div></div>';
+    '<div class="his-stat"><div class="k-label">雷达评分 vs 实际</div><div class="v tnum" style="font-size:15px">'+radarAvg+' → '+realAvg+'%</div><div class="s">评分均 → 实际均（验证准度）</div></div>'+
+    '<div class="his-stat"><div class="k-label">本周出手</div><div class="v tnum" style="font-size:18px">'+wkTrades.length+' <span style="font-size:11px;color:var(--text3)">笔</span></div><div class="s">胜率 '+wkRate+'%（近7天）</div></div>';
   $("#studyList").innerHTML = db.trades.slice().reverse().map((t,i) => {
     const ri = db.trades.length-1-i;
     const pct = (t.sellP != null && t.sellP !== "") ? calcPct(t) : null;
     const cls = pct==null ? "" : (pct>=0 ? "up-c" : "down-c");
-    return '<div class="study-row"><b style="min-width:88px">'+esc(t.date)+'</b>'+
+    const sellTip = (t.sellP == null || t.sellP === "") ? '<span class="tnum" style="min-width:170px;color:#FAAD14">持仓 · 次日卖点：冲高3-5%卖 / 跌破买入价-2%止损</span>' : "";
+    return '<div class="study-row"><b style="min-width:88px">'+esc(t.date)+'</b>'+sellTip+
       '<b style="min-width:140px">'+esc(t.name||"")+' <span class="cd tnum">'+esc(t.code)+'</span></b>'+
       '<span class="tnum" style="min-width:150px">买 '+t.buyP+' @'+esc(t.buyT||"-")+'</span>'+
       '<span class="tnum" style="min-width:150px">卖 '+(t.sellP!=null&&t.sellP!==""?t.sellP:"持仓")+(t.sellT?" @"+esc(t.sellT):"")+'</span>'+
