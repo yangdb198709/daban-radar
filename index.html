@@ -308,7 +308,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v8.2</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v9</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -637,7 +637,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v8.2</b>（2026-09-20 更新）· 风险标注 · 卖点提示 · 周对比 · 一键生成图(长按保存)· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v9</b>（2026-09-20 更新）· 真实回测修正：缩量锁仓加分 · 放量分歧降权· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -918,12 +918,17 @@ function scoreStock(s, secMap){
 
   const hs = s.hs || 0;
   let hS;
+  // v9 按真实回测：缩量锁仓胜率最高（3板+换手<5%=95.3%），放量分歧最低（换手20%+=74.8%）
   if (s.lbc <= 1){
-    if (hs >= 3 && hs <= 15) hS = 100; else if (hs > 15 && hs <= 25) hS = 82;
-    else if (hs > 25 && hs <= 40) hS = 55; else if (hs > 40) hS = 30; else hS = 45;
+    // 首板：缩量<5%=91.3%，3-15%=85.8%，20%+=75.6%
+    if (hs >= 3 && hs <= 15) hS = 100; else if (hs > 0 && hs < 3) hS = 95;
+    else if (hs > 15 && hs <= 20) hS = 78; else if (hs > 20 && hs <= 30) hS = 55;
+    else if (hs > 30) hS = 30; else hS = 50;
   } else {
-    if (hs >= 5 && hs <= 25) hS = 100; else if (hs > 25 && hs <= 40) hS = 70;
-    else if (hs > 40 && hs <= 60) hS = 45; else if (hs < 5) hS = 60; else hS = 30;
+    // 连板：<5%=95.3%，5-10%=91.3%，10-20%=88.2%，20%+=74.8%
+    if (hs > 0 && hs < 5) hS = 100; else if (hs >= 5 && hs <= 10) hS = 95;
+    else if (hs > 10 && hs <= 20) hS = 82; else if (hs > 20 && hs <= 30) hS = 55;
+    else if (hs > 30) hS = 30; else hS = 60;
   }
 
   const capYi = (s.ltsz || 0) / 1e8;
@@ -969,15 +974,18 @@ function scoreStock(s, secMap){
   reasons.push({ ok: tS >= 75, txt: `封板时间 ${fmtTime(s.fbt)}${tS >= 90 ? "（早盘强势）" : tS >= 60 ? "" : "（偏晚，溢价弱）"}` });
   reasons.push({ ok: sealS >= 65, warn: sealS >= 45 && sealS < 65, txt: `封单 ${sealPct != null ? sealPct.toFixed(2)+"%" : "--"}（占流通市值）` });
   reasons.push({ ok: zhS >= 70, warn: zhS >= 45 && zhS < 70, bad: zhS < 45, txt: `${zbc} 次炸板${zbc === 0 ? "，封板稳固" : zbc <= 1 ? "，基本稳定" : "，分歧明显"}` });
-  reasons.push({ ok: hS >= 80, warn: hS >= 55 && hS < 80, bad: hS < 55, txt: `换手 ${hs.toFixed(1)}%${hS >= 80 ? "，量能健康" : hS >= 55 ? "" : "，过冷或过热"}` });
+  reasons.push({ ok: hS >= 90, warn: hS >= 60 && hS < 90, bad: hS < 60, txt: `换手 ${hs.toFixed(1)}%${hS >= 90 ? (hs < 10 ? "，缩量锁仓" : "，量能健康") : hS >= 60 ? "" : "，放量分歧"}` });
   reasons.push({ ok: cS >= 80, warn: cS >= 55 && cS < 80, txt: `流通市值 ${fmtNum(s.ltsz)}${cS >= 80 ? "，黄金区间" : cS >= 55 ? "" : "，偏大难封或偏小易砸"}` });
   reasons.push({ ok: scS >= 80, warn: scS >= 55 && scS < 80, txt: `行业「${esc(s.hybk)}」${scCount} 家涨停${scS >= 80 ? "，板块效应强" : scS >= 55 ? "，有联动" : "，板块效应弱"}` });
   reasons.push({ ok: aS >= 75, warn: aS >= 55 && aS < 75, txt: `成交 ${fmtNum(s.amount)}${aS >= 75 ? "，放量充分" : aS >= 55 ? "" : "，量能不足"}` });
 
-  // v5 节前因子：距长假 ≤3 交易日时，高位连板评分降权
-  const fe5 = festivalInfo();
-  if (fe5.triggered && (s.lbc || 1) >= 2){
-    const w = s.lbc >= 4 ? 0.82 : 0.9;
+  // v9 节前因子精细化：缩量高位板不降（锁仓），只对放量高位板降权
+  const fe9 = festivalInfo();
+  if (fe9.triggered && (s.lbc || 1) >= 2){
+    let w = 1.0;
+    if (hs >= 20) w = s.lbc >= 4 ? 0.78 : 0.85; // 放量高位：重降
+    else if (hs >= 10) w = s.lbc >= 4 ? 0.9 : 0.95; // 中等换手：轻降
+    // 缩量（hs<10）不降权
     for (const k in scores) scores[k] = Math.max(0, Math.round(scores[k] * w));
   }
   return { dims, scores, reasons, sealPct, secCount: scCount, fbtMin };
@@ -1239,6 +1247,7 @@ function renderRecommend(){
         if (state.zb.some(z => z.code === s.code)) riskTags.push("昨日炸板过");
         if (s.lbc >= 4) riskTags.push("已是" + s.lbc + "连板高位");
         if ((s.zbc || 0) >= 1) riskTags.push("今日" + (s.zbc + 1) + "次封板");
+        if ((s.hs || 0) > 20) riskTags.push("换手" + s.hs.toFixed(0) + "%放量分歧");
         const riskHtml = riskTags.length ? '<div class="risk-line">⚠️ ' + riskTags.join(" · ") + '（标注提示，不影响评分）</div>' : "";
         return `
         <div class="rcard" data-code="${s.code}">
