@@ -308,7 +308,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v9</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v9.1</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -637,7 +637,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v9</b>（2026-09-20 更新）· 真实回测修正：缩量锁仓加分 · 放量分歧降权· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v9.1</b>（2026-09-20 更新）· 换手评分平滑化（最高93分，极端缩量降分）· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -918,17 +918,19 @@ function scoreStock(s, secMap){
 
   const hs = s.hs || 0;
   let hS;
-  // v9 按真实回测：缩量锁仓胜率最高（3板+换手<5%=95.3%），放量分歧最低（换手20%+=74.8%）
+  // v9.1 平滑评分：最高93分不给满分；极端缩量<2%流动性差反而降分
   if (s.lbc <= 1){
-    // 首板：缩量<5%=91.3%，3-15%=85.8%，20%+=75.6%
-    if (hs >= 3 && hs <= 15) hS = 100; else if (hs > 0 && hs < 3) hS = 95;
-    else if (hs > 15 && hs <= 20) hS = 78; else if (hs > 20 && hs <= 30) hS = 55;
-    else if (hs > 30) hS = 30; else hS = 50;
+    // 首板：3-10%最健康，<2%没人气，20%+放量分歧
+    if (hs >= 3 && hs <= 10) hS = 93; else if (hs > 10 && hs <= 15) hS = 90;
+    else if (hs >= 2 && hs < 3) hS = 88; else if (hs > 0 && hs < 2) hS = 80;
+    else if (hs > 15 && hs <= 20) hS = 78; else if (hs > 20 && hs <= 30) hS = 58;
+    else if (hs > 30) hS = 35; else hS = 55;
   } else {
-    // 连板：<5%=95.3%，5-10%=91.3%，10-20%=88.2%，20%+=74.8%
-    if (hs > 0 && hs < 5) hS = 100; else if (hs >= 5 && hs <= 10) hS = 95;
-    else if (hs > 10 && hs <= 20) hS = 82; else if (hs > 20 && hs <= 30) hS = 55;
-    else if (hs > 30) hS = 30; else hS = 60;
+    // 连板：2-5%缩量锁仓最优(95.3%)，<2%流动性风险，20%+放量(74.8%)
+    if (hs >= 2 && hs < 5) hS = 93; else if (hs >= 5 && hs <= 10) hS = 90;
+    else if (hs > 10 && hs <= 15) hS = 83; else if (hs > 15 && hs <= 20) hS = 75;
+    else if (hs > 0 && hs < 2) hS = 82; else if (hs > 20 && hs <= 30) hS = 58;
+    else if (hs > 30) hS = 35; else hS = 60;
   }
 
   const capYi = (s.ltsz || 0) / 1e8;
