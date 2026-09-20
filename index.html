@@ -298,7 +298,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达</h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v6</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -583,6 +583,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 </aside>
 
 <div class="toast-wrap" id="toastWrap"></div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v6</b>（2026-09-20 更新）· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -679,7 +680,46 @@ const state = {
   view: "recommend", sortKey: "fbt", sortDir: 1, secFilter: "all",
   sound: true, theme: "dark",
   chart: null, timerId: null, inSession: false, hisChart: null,
+  lastRecCodes: null, // v6.1 推荐池对比（入选/退出弹窗）
 };
+
+/* ===== v5 版本与节前因子 ===== */
+const APP_VER = "v6";
+const APP_VER_DATE = "2026-09-20";
+const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
+function isTradeDay(d){
+  if (d.getDay() === 0 || d.getDay() === 6) return false;
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), dd = String(d.getDate()).padStart(2,"0");
+  return HOLIDAYS_2026.indexOf(y + "-" + m + "-" + dd) < 0;
+}
+function festivalInfo(){
+  const now = new Date();
+  const d0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let cnt = 0, stop = null;
+  for (let i = 0; i < 25; i++){
+    const d = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() + i);
+    if (i > 0 && !isTradeDay(d)){ stop = d; break; }
+    if (isTradeDay(d)) cnt++;
+  }
+  const hDate = stop ? String(stop.getFullYear()) + "-" + String(stop.getMonth()+1).padStart(2,"0") + "-" + String(stop.getDate()).padStart(2,"0") : null;
+  let name = "休市";
+  if (hDate){
+    if (hDate <= "2026-09-27") name = "中秋";
+    else if (hDate >= "2026-10-01" && hDate <= "2026-10-07") name = "国庆";
+  }
+  return { days: cnt, holidayDate: hDate, name, triggered: cnt <= 3 };
+}
+function effectivePass(){
+  // v5：动态达标线 = 基础90 + 炸板率惩罚 + 低温惩罚 + 节前惩罚
+  const s = computeSentiment();
+  let p = HIST_PASS;
+  if (s.zbRate >= 40) p += 3;
+  else if (s.zbRate >= 35) p += 2;
+  else if (s.zbRate >= 28) p += 1;
+  if (s.temp < 40) p += 1;
+  if (festivalInfo().triggered) p += 2;
+  return Math.min(p, 97);
+}
 
 /* ===== 数据加载 ===== */
 async function loadZTPool(date){
@@ -802,7 +842,7 @@ const HIST_PASS = 90;
 function histQualify(stk, ztCount){
   const hit = histHit(stk, ztCount);
   const arch = stockHist(stk.code);
-  return { hit, arch, pass: !!(hit && hit.w2 >= HIST_PASS) };
+  return { hit, arch, pass: !!(hit && hit.w2 >= effectivePass()) };
 }
 
 /* ===== 评分模型 ===== */
@@ -880,6 +920,12 @@ function scoreStock(s, secMap){
   reasons.push({ ok: scS >= 80, warn: scS >= 55 && scS < 80, txt: `行业「${esc(s.hybk)}」${scCount} 家涨停${scS >= 80 ? "，板块效应强" : scS >= 55 ? "，有联动" : "，板块效应弱"}` });
   reasons.push({ ok: aS >= 75, warn: aS >= 55 && aS < 75, txt: `成交 ${fmtNum(s.amount)}${aS >= 75 ? "，放量充分" : aS >= 55 ? "" : "，量能不足"}` });
 
+  // v5 节前因子：距长假 ≤3 交易日时，高位连板评分降权
+  const fe5 = festivalInfo();
+  if (fe5.triggered && (s.lbc || 1) >= 2){
+    const w = s.lbc >= 4 ? 0.82 : 0.9;
+    for (const k in scores) scores[k] = Math.max(0, Math.round(scores[k] * w));
+  }
   return { dims, scores, reasons, sealPct, secCount: scCount, fbtMin };
 }
 
@@ -919,6 +965,18 @@ function computeSentiment(){
 /* ===== 渲染：头部 KPI ===== */
 function renderKpi(senti){
   const y = state.yest;
+  // v5 节前提示条
+  const fe5 = festivalInfo();
+  const oldBar = document.getElementById("festBar");
+  if (oldBar) oldBar.remove();
+  if (fe5.triggered){
+    const bar = document.createElement("div");
+    bar.id = "festBar";
+    bar.style.cssText = "margin:8px 14px 0;padding:8px 12px;border-radius:10px;font-size:12.5px;line-height:1.7;background:rgba(250,173,20,0.12);border:1px solid rgba(250,173,20,0.45);color:var(--text)";
+    bar.innerHTML = '⚠️ <b>距' + fe5.name + '休市（' + fe5.holidayDate + '）仅剩 ' + fe5.days + ' 个交易日</b> · 节前高位连板兑现风险高：评分已降权（4板以上×0.82、2-3板×0.9），达标线已上调，建议轻仓快打、不留高位隔夜。';
+    const kpi = document.getElementById("kpiBar");
+    if (kpi) kpi.parentNode.insertBefore(bar, kpi);
+  }
   const kpiHtml = `
     <div class="kpi up"><div class="k-label">今日涨停</div><div class="k-val">${senti.ztN}</div><div class="k-sub">家</div></div>
     <div class="kpi down"><div class="k-label">炸板</div><div class="k-val">${senti.zbN}</div><div class="k-sub">家</div></div>
@@ -954,6 +1012,9 @@ function cardHtml(s, rank){
     ? (s.isTop ? `<span class="tag m-longtou">总龙头</span>` : `<span class="tag m-lianban">${s.lbc}连板</span>`)
     : `<span class="tag m-shouban">首板</span>`;
   const tagCls = s.lbc >= 4 ? "lb4" : s.lbc >= 3 ? "lb3" : s.lbc === 2 ? "lb2" : "lb1";
+  const fesTag = festivalInfo().triggered && (s.lbc || 1) >= 2
+    ? '<span class="tag" style="background:rgba(234,102,104,0.14);color:#EA6668;border:1px solid rgba(234,102,104,0.5)">⚠节前兑现风险</span>'
+    : "";
   const reasonHtml = sc.reasons.map(r =>
     `<div class="reason"><span class="${r.ok ? "ok" : r.bad ? "bad" : r.warn ? "warn" : "t"}">${r.ok ? "✓" : r.bad ? "✕" : r.warn ? "!" : "·"}</span><span class="t">${r.txt}</span></div>`
   ).join("");
@@ -966,7 +1027,7 @@ function cardHtml(s, rank){
       </div>
       <div>
         <div class="name">${esc(s.name)}<span class="code tnum">${s.code}</span></div>
-        <div class="tags">${modeTag}<span class="tag board">${is20cm(s.code) ? "20cm" : "10cm"}</span><span class="tag lbc tnum">封单 ${fmtNum(s.fund)}</span></div>
+        <div class="tags">${modeTag}${fesTag}<span class="tag board">${is20cm(s.code) ? "20cm" : "10cm"}</span><span class="tag lbc tnum">封单 ${fmtNum(s.fund)}</span></div>
         <div class="price-row"><span class="price tnum">${fmtPrice(s.price)}</span><span class="chg tnum">${fmtPct(s.zdp)}</span></div>
       </div>
     </div>
@@ -1006,33 +1067,93 @@ function renderRecommend(){
       <div class="it"><div class="v blue tnum">${senti.zbN}</div><div class="k">炸板数</div></div>
     </div>`;
 
-  // 推荐：先按历史打板成功率 >=90% 过滤（不达标宁可空仓），再分模式取 Top 合并
+  // v6：达标（≥动态线）优先 + 候选（≥90%且未达动态线）也进推荐，达标优先、灵活选择
   const ztCount = state.zt.length;
   const scored = state.zt.map(s => ({ s, sc: scoreStock(s, secMap), hq: histQualify(s, ztCount) }));
+  const passLine = effectivePass();
   const qualified = scored.filter(x => x.hq.pass);
-  const sb = qualified.filter(x => x.s.lbc === 1).sort((a,b) => b.sc.scores.shouban - a.sc.scores.shouban).slice(0, 4);
-  const lb = qualified.filter(x => x.s.lbc >= 2).sort((a,b) => b.sc.scores.lianban - a.sc.scores.lianban).slice(0, 4);
-  const tops = qualified.filter(x => x.s.isTop || x.s.lbc >= 3).sort((a,b) => b.sc.scores.longtou - a.sc.scores.longtou).slice(0, 3);
+  const candidates = scored.filter(x => !x.hq.pass && x.hq.hit && x.hq.hit.w2 >= 90);
+  const pool = [...qualified, ...candidates];
+  const sb = pool.filter(x => x.s.lbc === 1).sort((a,b) => (b.hq.pass - a.hq.pass) || (b.sc.scores.shouban - a.sc.scores.shouban)).slice(0, 4);
+  const lb = pool.filter(x => x.s.lbc >= 2).sort((a,b) => (b.hq.pass - a.hq.pass) || (b.sc.scores.lianban - a.sc.scores.lianban)).slice(0, 4);
+  const tops = pool.filter(x => x.s.isTop || x.s.lbc >= 3).sort((a,b) => (b.hq.pass - a.hq.pass) || (b.sc.scores.longtou - a.sc.scores.longtou)).slice(0, 3);
   const merged = [...sb.map(x => ({...x, mode:"shouban"})), ...lb.map(x => ({...x, mode:"lianban"})), ...tops.map(x => ({...x, mode:"longtou"}))];
   const seen = new Set();
   const recs = merged.filter(x => !seen.has(x.s.code) && (seen.add(x.s.code), true))
-    .sort((a,b) => b.sc.scores[b.mode] - a.sc.scores[a.mode]).slice(0, 9);
+    .sort((a,b) => (b.hq.pass - a.hq.pass) || (b.sc.scores[b.mode] - a.sc.scores[a.mode])).slice(0, 9);
 
-  $("#recLabel").innerHTML = `今日打板推荐<span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px">历史成功率 ≥ ${HIST_PASS}% 达标 ${qualified.length}/${state.zt.length} 家 · 不达标宁可空仓</span>`;
+  // v6.1 关键节点弹窗：入选/退出打板推荐（仅盘中；入选=红 t-up，退出=绿 t-down）
+  if (state.inSession && state.loadOk){
+    const recSet = new Set(recs.map(x => x.s.code));
+    const prevSet = state.lastRecCodes;
+    if (prevSet){
+      recs.filter(x => !prevSet.has(x.s.code)).forEach(x => {
+        const s = x.s;
+        toast("up", esc(s.name) + " 入选打板推荐", "评分 " + x.sc.scores[x.mode] + " · 历史胜率 " + x.hq.hit.w2 + "% · " + (s.lbc >= 2 ? s.lbc + "连板" : "首板"));
+      });
+      Array.from(prevSet).filter(c => !recSet.has(c)).forEach(c => {
+        const stk = state.zt.find(s => s.code === c);
+        if (stk) toast("down", esc(stk.name) + " 退出打板推荐", "已不满足达标线 " + effectivePass() + "%");
+      });
+    }
+    state.lastRecCodes = recSet;
+  }
+
+  $("#recLabel").innerHTML = `今日打板推荐<span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px">达标线 ${effectivePass()}%：达标 <b style="color:var(--down)">${qualified.length}</b> 家 · 候选 <b style="color:#FAAD14">${candidates.length}</b> 家（≥90%）· 不达标宁可空仓${!qualified.length ? ' <b style="color:#FAAD14">⚠今日无达标，候选仅供灵活参考</b>' : ""}</span>`;
   $("#cntRec").textContent = recs.length;
 
-  const recEmpty = !recs.length ? (state.zt.length ? `
+    const recEmpty = !recs.length ? (state.zt.length ? `
     <div class="empty-advice">
       <div class="big">今日建议空仓</div>
-      <div class="desc">今日涨停 <b>${state.zt.length}</b> 家，但按历史回测门槛（<b>次日冲高兑现成功率 ≥ ${HIST_PASS}%</b>），<b>无一达标</b>。<br>
+      <div class="desc">今日涨停 <b>${state.zt.length}</b> 家，但按历史回测门槛（<b>次日冲高兑现成功率 ≥ 90%</b>），<b>无一达标候选</b>。<br>
         达标标准：该股当前条件（连板 × 换手 × 市场情绪）在 2023-09 ~ 2026-09 的 ${window.HIST ? window.HIST.meta.ztSamples.toLocaleString() : ""} 个历史涨停样本中，
-        次日盘中冲高兑现率 ≥ ${HIST_PASS}%。<br>宁可空仓等待，不打没把握的板。</div>
-    </div>` : `<div class="empty" style="grid-column:1/-1"><div class="big">暂无涨停数据</div>非交易时段或接口暂未返回数据，请稍后刷新。</div>`) : "";
+        次日盘中冲高兑现率 ≥ 90%。<br>宁可空仓等待，不打没把握的板。</div>
+    </div>` : (() => {
+      const yest = state.yest;
+      const maxLbc = yest && yest.rows && yest.rows.length ? Math.max.apply(null, yest.rows.map(function(r){ return r.lbc || 0; })) : null;
+      let kpiHtml = `<div class="panel"><div class="k-label" style="font-size:11px;color:var(--text3)">昨日涨停家数</div><div class="v up-c tnum" style="font-size:26px;font-weight:900">${yest ? yest.stats.total : "--"}</div></div>
+        <div class="panel"><div class="k-label" style="font-size:11px;color:var(--text3)">昨日最高连板</div><div class="v gold tnum" style="font-size:26px;font-weight:900">${maxLbc ? maxLbc + "板" : "--"}</div></div>
+        <div class="panel"><div class="k-label" style="font-size:11px;color:var(--text3)">昨日晋级率</div><div class="v up-c tnum" style="font-size:26px;font-weight:900">${yest ? (yest.stats.ztRate * 100).toFixed(0) + "%" : "--"}</div></div>`;
+      let rowsHtml = "";
+      if (yest && yest.rows && yest.rows.length) {
+        const sorted = yest.rows.slice().sort(function(a, b){ return (b.lbc || 0) - (a.lbc || 0); }).slice(0, 12);
+        rowsHtml = sorted.map(function(r){
+          const chg = r.todayChg;
+          const status = chg == null ? "待开盘" : (chg >= ztThreshold(r) ? "再涨停" : chg > 0 ? "红盘" : chg === 0 ? "平盘" : "绿盘");
+          const scls = chg == null ? "flat-c" : (chg > 0 ? "up-c" : "down-c");
+          return `<tr data-code="${r.code}">
+            <td class="l"><div class="nm-cell"><span class="nm">${esc(r.name)}</span><span class="cd tnum">${r.code}</span></div></td>
+            <td class="tnum"><span class="badge ${r.lbc >= 4 ? "lb4" : r.lbc >= 3 ? "lb3" : r.lbc === 2 ? "lb2" : "lb1"}">${r.lbc}板</span></td>
+            <td class="l">${esc(r.hybk || "")}</td>
+            <td class="${scls} tnum" style="font-weight:800">${chg != null ? fmtPct(chg) : "待开盘"}</td>
+          </tr>`;
+        }).join("");
+      } else {
+        rowsHtml = `<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:14px">昨日数据加载中或不可用，请稍后刷新。</td></tr>`;
+      }
+      return `<div style="grid-column:1/-1">
+        <div class="panel" style="background:linear-gradient(135deg,var(--blue-bg),transparent);border-color:var(--blue)">
+          <div style="font-size:15px;font-weight:800;color:var(--blue)">盘前模式 · 今日涨停池尚未生成</div>
+          <div style="font-size:12.5px;color:var(--text2);margin-top:5px;line-height:1.8">当前为盘前或非交易时段，东财接口暂无今日涨停数据。以下为<b>昨日市场全景</b>，供盘前重点跟踪：<br/>9:25 竞价结束刷新 → 看昨日涨停股竞价溢价；9:30 开盘后 → 本页自动恢复实时推荐。</div>
+        </div>
+        <div class="grid cols-3" style="margin-bottom:12px">${kpiHtml}</div>
+        <div class="sec-label">昨日涨停梯队（按连板排序 · 今日晋级观察名单）</div>
+        <div class="tbl-wrap" style="max-height:340px;overflow-y:auto">
+          <table class="tbl" style="min-width:560px">
+            <thead><tr><th class="l">名称</th><th>连板</th><th class="l">行业</th><th>今日状态</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div class="notice">盘前数据为昨日收盘全景；9:25 集合竞价后刷新可见竞价表现，9:30 后恢复实时推荐。</div>
+      </div>`;
+    })()) : "";
 
   $("#recGrid").innerHTML = recEmpty || recs.map((x, i) => {
         const s = x.s; const v = x.sc.scores[x.mode];
         const modeTag = x.mode === "longtou" ? `<span class="tag m-longtou">龙头</span>` : x.mode === "lianban" ? `<span class="tag m-lianban">${s.lbc}连板</span>` : `<span class="tag m-shouban">首板</span>`;
-        const winBadge = `<span class="win-badge pass">✓ ${x.hq.hit.w2}%</span>`;
+        const winBadge = x.hq.pass
+          ? '<span class="win-badge pass">✓ ' + x.hq.hit.w2 + '%</span>'
+          : '<span class="win-badge" style="background:#FAAD14;color:#1A1B1C;border:none;box-shadow:0 1px 4px rgba(250,173,20,.45)">' + x.hq.hit.w2 + '% 候选</span>';
         const reasonHtml = x.sc.reasons.map(r =>
           `<div class="reason"><span class="${r.ok ? "ok" : r.bad ? "bad" : r.warn ? "warn" : "t"}">${r.ok ? "✓" : r.bad ? "✕" : r.warn ? "!" : "·"}</span><span class="t">${r.txt}</span></div>`).join("");
         return `
@@ -1054,7 +1175,7 @@ function renderRecommend(){
             <span>换手 <b class="tnum">${(s.hs||0).toFixed(1)}%</b></span>
             <span>${esc(s.hybk)} <b class="tnum">${x.sc.secCount}家</b></span>
           </div>
-          <div class="hit-line">历史打板成功率 <b>${x.hq.hit.w2}%</b><span style="color:var(--text3)">（样本 ${x.hq.hit.n} 次 · ${esc(x.hq.hit.label)}）</span> · 隔日收盘盈利 ${x.hq.hit.w1}%</div>
+          <div class="hit-line" style="color:${x.hq.pass ? "" : "#FAAD14"}">历史打板成功率 <b>${x.hq.hit.w2}%</b><span style="color:var(--text3)">（样本 ${x.hq.hit.n} 次 · ${esc(x.hq.hit.label)}）</span> · 隔日收盘盈利 ${x.hq.hit.w1}%</div>
           <div class="reasons">${reasonHtml}</div>
         </div>`;
       }).join("");
@@ -1370,7 +1491,7 @@ function renderHistory(){
     · <b style="color:var(--down)">兑现成功率</b>：次日盘中最高价 &gt; 买入价（次日有冲高兑现盈利的机会）<br>
     · 收盘盈利：次日收盘价 &gt; 买入价（隔日持有到收盘）<br>
     · 条件组：按 连板高度 × 当日换手率 × 当日市场涨停家数 分桶统计<br>
-    <b style="color:var(--text)">推荐门槛</b>：当前条件组历史兑现成功率 ≥ <b style="color:var(--gold)">${HIST_PASS}%</b> 且样本 ≥ 20 次才推荐，否则建议空仓<br>
+    <b style="color:var(--text)">推荐门槛</b>：当前条件组历史兑现成功率 ≥ <b style="color:var(--gold)">${effectivePass()}%</b>（炸板率/节前会自动上调） 且样本 ≥ 20 次才推荐，否则建议空仓<br>
     <b style="color:var(--text)">数据来源</b>：用户提供的 A 股日线 + 集合竞价历史数据（覆盖 ${esc(m.range)}）`;
 
   // 近期复盘
@@ -1389,7 +1510,7 @@ function toast(type, title, msg){
   const wrap = $("#toastWrap");
   const el = document.createElement("div");
   el.className = "toast t-" + type;
-  const ic = type === "up" ? "涨" : type === "down" ? "炸" : "级";
+  const ic = type === "up" ? "涨" : type === "down" ? "退" : "级";
   el.innerHTML = `<div class="ic">${ic}</div><div><div class="tt">${title}</div>${msg ? `<div class="tm">${msg}</div>` : ""}</div>`;
   wrap.appendChild(el);
   setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .4s"; setTimeout(() => el.remove(), 400); }, 5200);
@@ -1427,12 +1548,10 @@ function checkAlerts(newZt){
   for (const code in cur){
     if (!prev[code]){
       const s = newZt.find(x => x.code === code);
-      toast("up", `${esc(s.name)} 涨停`, `${s.lbc === 1 ? "首板" : s.lbc + "连板"} · 封单 ${fmtNum(s.fund)} · 行业 ${esc(s.hybk)}`);
       soundEvent("zt");
       flashRow(code, "up");
     } else if (cur[code] > prev[code]){
       const s = newZt.find(x => x.code === code);
-      toast("gold", `${esc(s.name)} 晋级 ${cur[code]} 连板`, `${esc(s.hybk)} · 封单 ${fmtNum(s.fund)}`);
       soundEvent("promote");
       flashRow(code, "up");
     }
@@ -1442,7 +1561,6 @@ function checkAlerts(newZt){
     if (!cur[code]){
       const zb = state.zb.find(x => x.code === code);
       if (zb){
-        toast("down", `${esc(zb.name)} 炸板`, `现价 ${fmtPrice(zb.price)} · ${fmtPct(zb.zdp)} · 曾触板 ${fmtTime(zb.fbt)}`);
         soundEvent("zb");
         flashRow(code, "down");
       }
@@ -1590,7 +1708,7 @@ async function openDetail(code){
       ${arch.zt60 >= 3 ? `<span class="his-tag">近期活跃</span>` : ""}
       ${arch.zts === 0 ? "" : ""}
     </div>
-    ${hq.hit ? `<div class="hit-line">当前条件（${esc(hq.hit.label)}）历史打板成功率 <b>${hq.hit.w2}%</b><span style="color:var(--text3)">（样本 ${hq.hit.n} 次 · 隔日收盘盈利 ${hq.hit.w1}%）</span> ${hq.pass ? `<span class="win-badge pass">✓ 达标 ≥ ${HIST_PASS}%</span>` : `<span class="win-badge fail">✕ 未达 ${HIST_PASS}%</span>`}</div>` : `<div class="hit-line">历史条件组样本不足，无法给出可靠成功率。</div>`}
+    ${hq.hit ? `<div class="hit-line">当前条件（${esc(hq.hit.label)}）历史打板成功率 <b>${hq.hit.w2}%</b><span style="color:var(--text3)">（样本 ${hq.hit.n} 次 · 隔日收盘盈利 ${hq.hit.w1}%）</span> ${hq.pass ? `<span class="win-badge pass">✓ 达标 ≥ ${effectivePass()}%</span>` : `<span class="win-badge fail">✕ 未达 ${effectivePass()}%</span>`}</div>` : `<div class="hit-line">历史条件组样本不足，无法给出可靠成功率。</div>`}
   ` : `<div style="font-size:12px;color:var(--text3);padding:6px 0">该股在历史数据中无涨停记录（或数据未覆盖），暂无打板档案。</div>`;
   $("#dHist").innerHTML = archHtml;
 
