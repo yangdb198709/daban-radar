@@ -1337,10 +1337,10 @@ function renderRecommend(){
             : '<span class="win-badge" style="background:#FAAD14;color:#1A1B1C;border:none;box-shadow:0 1px 4px rgba(250,173,20,.45)">A候选 ' + x.hq.hit.w2 + '%</span>';
         } else if (x.kg.g === "S"){
           kgBadge = '<span class="tag kg kg-S">S 一字·只观察</span>';
-          winBadge = '<span class="win-badge" style="background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold)">排不进·不追</span>';
+          winBadge = '<span class="win-badge" style="background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold)">S ' + x.hq.hit.w2 + '% 排不进</span>';
         } else {
           kgBadge = '<span class="tag kg kg-B">B 易炸·放弃</span>';
-          winBadge = '<span class="win-badge" style="background:var(--up-bg);color:var(--up);border:1px solid var(--up)">不打</span>';
+          winBadge = '<span class="win-badge" style="background:var(--up-bg);color:var(--up);border:1px solid var(--up)">B ' + x.hq.hit.w2 + '% 不打</span>';
         }
         const kgLine = '<div class="kline ' + x.kg.g + '">🎯 ' + x.kg.why + (x.kg.fundAmt != null ? '（封单/成交 ' + x.kg.fundAmt.toFixed(2) + ' 倍）' : '') + '</div>';
         const reasonHtml = x.sc.reasons.map(r =>
