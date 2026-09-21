@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -274,9 +274,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .empty{padding:42px 20px;text-align:center;color:var(--text3);font-size:13px}
 .empty .big{font-size:15px;color:var(--text2);font-weight:700;margin-bottom:6px}
 .notice{font-size:11px;color:var(--text3);margin-top:10px;display:flex;gap:6px;align-items:center}
-.footer-note{position:fixed;bottom:0;left:0;right:0;z-index:50;background:var(--panel);border-top:1px solid var(--line);
-  font-size:11px;color:var(--text3);text-align:center;padding:7px 14px}
-.footer-note b{color:var(--text2)}
 
 /* ============ 响应式 ============ */
 @media (max-width:1100px){
@@ -320,7 +317,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v11.3</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v11.4</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -681,8 +678,6 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v11</b>（2026-09-21 更新）· <b>v11 可打性三档</b>：S=一字/巨单封死排不进（只观察不追）· A=换手3-25%＋10:30前封＋封单适中（开板回封唯一可打·绿勾）· B=反复开板/爆量&gt;30%/薄封单/尾盘板（易炸放弃）· 无A达标即空仓 · v10.2 竞价重构：量价结合（放量低开/爆量高开直接红警）· 抱团高潮周期闸门（自动回避中位2-3板）· 新增「强势通道」（最高标/一字盯开板回封）· 9:30后竞价名单实时封板/冲高/走弱验证与命中率统计 · 观察范围放开至最高板 · v10.1 竞价名单自动落盘+次日真实冲高自动回查+一键导出回测CSV · v10 9:25竞价名单（只筛不买，封板+评分达标两道关）· P0 节前因子 · P1 炸板率收紧达标线 · P2 90%+候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不弹窗）</div>
-<div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
 "use strict";
@@ -782,7 +777,7 @@ const state = {
 };
 
 /* ===== v5 版本与节前因子 ===== */
-const APP_VER = "v11.3";
+const APP_VER = "v11.4";
 const APP_VER_DATE = "2026-09-21";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
