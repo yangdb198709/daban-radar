@@ -322,7 +322,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v11.2</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v11.3</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -784,7 +784,7 @@ const state = {
 };
 
 /* ===== v5 版本与节前因子 ===== */
-const APP_VER = "v11.2";
+const APP_VER = "v11.3";
 const APP_VER_DATE = "2026-09-21";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -1280,7 +1280,7 @@ function renderRecommend(){
   const aCandN = recs.filter(x => x.kg.g === "A" && !x.hq.pass).length;
   const sN = recs.filter(x => x.kg.g === "S").length;
   const bN = recs.filter(x => x.kg.g === "B").length;
-  $("#recLabel").innerHTML = `今日打板推荐<span onclick="generateShot()" style="font-size:11px;color:var(--blue);font-weight:700;margin-left:8px;cursor:pointer;padding:2px 8px;background:var(--blue-bg);border-radius:6px">📸 生成图片发微信</span><span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px"><b style="color:var(--down)">🎯 A 可打 ${aPassN}</b> 家（A候选 ${aCandN}）· <b style="color:var(--gold)">S 一字观察 ${sN}</b> 家 · <b style="color:var(--up)">B 放弃 ${bN}</b> 家 · 达标线 ${effectivePass()}%${aPassN === 0 ? ' <b style="color:var(--up)">⚠今日无A档可打（S买不进·B易炸），建议空仓</b>' : ' · 只打A档绿勾，开板回封排队'}</span>`;
+  $("#recLabel").innerHTML = `今日打板推荐<span onclick="generateShot()" style="font-size:11px;color:var(--blue);font-weight:700;margin-left:8px;cursor:pointer;padding:2px 8px;background:var(--blue-bg);border-radius:6px">📸 生成图片发微信</span><span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px"><b style="color:var(--down)">🎯 A 可打 ${aPassN}</b> 家（A候选 ${aCandN}）· <b style="color:var(--gold)">S 一字观察 ${sN}</b> 家 · <b style="color:var(--up)">B 易炸 ${bN}</b> 家 · 达标线 ${effectivePass()}%${aPassN === 0 ? ' <b style="color:var(--up)">⚠今日无A档可打（S买不进·B易炸），建议空仓</b>' : ' · 只打A档绿勾，开板回封排队'}</span>`;
   $("#cntRec").textContent = recs.length;
 
     const recEmpty = !recs.length ? (state.zt.length ? `
@@ -1342,8 +1342,8 @@ function renderRecommend(){
           kgBadge = '<span class="tag kg kg-S">S 观察</span>';
           winBadge = '<span class="win-badge gold">★ 观察 ' + x.hq.hit.w2 + '%</span>';
         } else {
-          kgBadge = '<span class="tag kg kg-B">B 放弃</span>';
-          winBadge = '<span class="win-badge fail">✕ 放弃 ' + x.hq.hit.w2 + '%</span>';
+          kgBadge = '<span class="tag kg kg-B">B 易炸</span>';
+          winBadge = '<span class="win-badge fail">✕ 易炸 ' + x.hq.hit.w2 + '%</span>';
         }
         const kgLine = '<div class="kline ' + x.kg.g + '">🎯 ' + x.kg.why + (x.kg.fundAmt != null ? '（封单/成交 ' + x.kg.fundAmt.toFixed(2) + ' 倍）' : '') + '</div>';
         const reasonHtml = x.sc.reasons.map(r =>
