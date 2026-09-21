@@ -124,7 +124,7 @@ select{font-family:inherit;cursor:pointer}
 .tag.kg-B{background:var(--up-bg);color:var(--up);border:1px solid var(--up)}
 .rcard.kg-A{border:1.5px solid var(--down) !important}
 .rcard.kg-S{border:1.5px solid var(--gold) !important}
-.rcard.kg-B{opacity:.7}
+.rcard.kg-B{border:1.5px solid var(--up) !important}
 .kline{margin-top:7px;font-size:11.5px;line-height:1.55;border-radius:8px;padding:5px 9px;font-weight:700}
 .kline.A{background:var(--down-bg);color:var(--down)}
 .kline.S{background:var(--gold-bg);color:var(--gold)}
@@ -142,6 +142,7 @@ select{font-family:inherit;cursor:pointer}
 .win-badge.pass{background:var(--down-bg);color:var(--down);border:1px solid rgba(14,189,141,.35)}
 .win-badge.fail{background:var(--up-bg);color:var(--up);border:1px solid rgba(242,54,69,.3)}
 .win-badge.gold{background:var(--gold-bg);color:var(--gold);border:1px solid rgba(240,185,11,.35)}
+.win-badge.cand{background:rgba(250,173,20,.16);color:#e3a708;border:1px solid rgba(250,173,20,.45)}
 .hit-line{font-size:10.5px;color:var(--text3);display:flex;gap:5px;align-items:baseline;margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
 .hit-line b{color:var(--down);font-weight:900}
 .empty-advice{grid-column:1/-1;background:linear-gradient(135deg,var(--panel2),var(--panel));border:1.5px solid var(--gold);border-radius:16px;padding:26px 22px;text-align:center;position:relative;overflow:hidden}
@@ -319,7 +320,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v11</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v11.2</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -781,7 +782,7 @@ const state = {
 };
 
 /* ===== v5 版本与节前因子 ===== */
-const APP_VER = "v11";
+const APP_VER = "v11.2";
 const APP_VER_DATE = "2026-09-21";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -1333,14 +1334,14 @@ function renderRecommend(){
         if (x.kg.g === "A"){
           kgBadge = '<span class="tag kg kg-A">🎯 A 可打</span>';
           winBadge = x.hq.pass
-            ? '<span class="win-badge pass">✓可打 ' + x.hq.hit.w2 + '%</span>'
-            : '<span class="win-badge" style="background:#FAAD14;color:#1A1B1C;border:none;box-shadow:0 1px 4px rgba(250,173,20,.45)">A候选 ' + x.hq.hit.w2 + '%</span>';
+            ? '<span class="win-badge pass">✓ 可打 ' + x.hq.hit.w2 + '%</span>'
+            : '<span class="win-badge cand">△ 候选 ' + x.hq.hit.w2 + '%</span>';
         } else if (x.kg.g === "S"){
-          kgBadge = '<span class="tag kg kg-S">S 一字·只观察</span>';
-          winBadge = '<span class="win-badge" style="background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold)">S ' + x.hq.hit.w2 + '% 排不进</span>';
+          kgBadge = '<span class="tag kg kg-S">S 观察</span>';
+          winBadge = '<span class="win-badge gold">★ 观察 ' + x.hq.hit.w2 + '%</span>';
         } else {
-          kgBadge = '<span class="tag kg kg-B">B 易炸·放弃</span>';
-          winBadge = '<span class="win-badge" style="background:var(--up-bg);color:var(--up);border:1px solid var(--up)">B ' + x.hq.hit.w2 + '% 不打</span>';
+          kgBadge = '<span class="tag kg kg-B">B 放弃</span>';
+          winBadge = '<span class="win-badge fail">✕ 放弃 ' + x.hq.hit.w2 + '%</span>';
         }
         const kgLine = '<div class="kline ' + x.kg.g + '">🎯 ' + x.kg.why + (x.kg.fundAmt != null ? '（封单/成交 ' + x.kg.fundAmt.toFixed(2) + ' 倍）' : '') + '</div>';
         const reasonHtml = x.sc.reasons.map(r =>
