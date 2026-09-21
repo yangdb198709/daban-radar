@@ -308,7 +308,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v10</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v10.1</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -636,6 +636,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         <button class="btnv" id="btnAddTrade">+ 记录这笔出手</button>
         <button class="btnv gold" id="btnSnap">📸 记录今日推荐池快照（收盘自动记）</button>
         <button class="btnv" id="btnExport">💾 导出 daban-data.json</button>
+        <button class="btnv" id="btnExportCsv">📊 导出回测明细 CSV</button>
         <button class="btnv" id="btnImportFile">📂 从文件读入</button>
         <input type="file" id="importFile" accept=".json" hidden>
       </div>
@@ -657,12 +658,16 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
     <div id="studyList"></div>
   </div>
   <div class="panel" style="margin-top:12px">
+    <div class="panel-title"><span class="bar"></span>📊 信号自动回测成绩（次日真实冲高，自动累积）</div>
+    <div id="studyVerify"></div>
+  </div>
+  <div class="panel" style="margin-top:12px">
     <div class="panel-title"><span class="bar"></span>推荐池快照存档</div>
     <div id="studySnaps"></div>
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v10</b>（2026-09-20 更新）· 新增9:25竞价观察名单（只筛不买，封板+评分≥85两道关）· 换手评分平滑化· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v10.1</b>（2026-09-21 更新）· 竞价名单自动落盘 + 次日真实冲高自动回查累积实盘胜率 + 一键导出回测CSV · v10 新增9:25竞价观察名单（只筛不买，封板+评分≥85两道关）· 换手评分平滑化· P0 节前因子 · P2 90%+ 候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不再弹窗）（距长假≤3交易日高位降权）· P1 炸板率收紧达标线（炸板率≥28%动态上调门槛）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -763,8 +768,8 @@ const state = {
 };
 
 /* ===== v5 版本与节前因子 ===== */
-const APP_VER = "v10";
-const APP_VER_DATE = "2026-09-20";
+const APP_VER = "v10.1";
+const APP_VER_DATE = "2026-09-21";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
   if (d.getDay() === 0 || d.getDay() === 6) return false;
@@ -1673,6 +1678,7 @@ function renderStudy(){
       '<button class="fbtn" style="margin-left:auto" onclick="delSnap('+ri+')">删</button>'+
       '<div style="width:100%;margin-top:4px;color:var(--text2)">'+(sn.items||[]).map(it=>'<span class="his-tag">'+esc(it.name)+' '+it.score+'分</span>').join(" ")+'</div></div>';
   }).join("") || '<div class="empty" style="padding:20px;text-align:center;color:var(--text3)">还没有快照存档。盘中点「📸 记录今日推荐池快照」即可留底稿。</div>';
+  renderVerify();
 }
 
 function bindStudy(){
@@ -1691,10 +1697,12 @@ function bindStudy(){
   const b2 = $("#btnSnap");
   if (b2) b2.onclick = function(){
     if (!state.recPool || !state.recPool.length) { alert("请先打开「综合推荐」让推荐数据加载出来，再回来点快照。"); return; }
-    const db = loadStudy();
-    db.snaps.push({ date: studyDateStr(), time: new Date().toTimeString().slice(0,5), pass: effectivePass(), items: state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode]}; }) });
-    saveStudy(db); renderStudy();
+    const items = state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode]}; });
+    upsertSnap(studyDateStr(), {items:items, pass:effectivePass(), time:new Date().toTimeString().slice(0,5)});
+    renderStudy();
   };
+  const bCsv = $("#btnExportCsv");
+  if (bCsv) bCsv.onclick = function(){ exportStudyCsv(); };
   const b3 = $("#btnExport");
   if (b3) b3.onclick = function(){
     const blob = new Blob([JSON.stringify(loadStudy(),null,2)], {type:"application/json"});
@@ -1712,21 +1720,223 @@ function bindStudy(){
 }
 
 /* ===== 提醒系统 ===== */
-/* v7.1 收盘后自动快照：每天收盘且未记过时自动记录推荐池 */
+/* ===== v10.1 竞价落盘 + 次日自动回查 + CSV ===== */
+function fmtDateISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function nextTradeDate(dateStr){
+  const d = new Date(dateStr+"T00:00:00");
+  if (isNaN(d.getTime())) return null;
+  for (let i=0;i<15;i++){ d.setDate(d.getDate()+1); if (isTradeDay(d)) return fmtDateISO(d); }
+  return null;
+}
+function ymdOf(dateStr){ return String(dateStr).replace(/-/g,""); }
+function tierName(t){ return t==="core"?"重点":(t==="watch"?"一般":(t==="skip"?"排除":"待定")); }
+function upsertSnap(date, patch){
+  const db = loadStudy();
+  let s = db.snaps.find(x=>x.date===date);
+  if (!s){ s = {date:date, time:new Date().toTimeString().slice(0,5), pass:effectivePass(), items:[], auc:[]}; db.snaps.push(s); }
+  Object.keys(patch).forEach(k=>{ s[k]=patch[k]; });
+  saveStudy(db);
+  return s;
+}
+/* 9:25 竞价名单定稿后自动落盘（只在交易日 9:25 后、当天未记过时） */
+function maybeAucSnap(){
+  try{
+    if (!state.auction || !state.auction.rows || !state.auction.rows.length) return;
+    const now = new Date();
+    if (!isTradeDay(now)) return;
+    const hm = now.getHours()*60 + now.getMinutes();
+    if (hm < 9*60+25) return;
+    const today = studyDateStr();
+    const db = loadStudy();
+    const s = db.snaps.find(x=>x.date===today);
+    if (s && s.auc && s.auc.length) return;
+    const rows = state.auction.rows.map(function(r){
+      const t = (r._c && r._c.tier) || aucClassify(r).tier;
+      return {code:r.code, name:r.name, lbc:r.lbc, ag:r.ag, vr:r.vr, hs:r.hs, tier:t};
+    });
+    upsertSnap(today, {auc:rows, aucTime:now.toTimeString().slice(0,5)});
+  }catch(e){}
+}
+/* 次日自动回查：下一交易日当天用 ulist 取真实最高/收盘（精确）；漏验的用涨停池补连板（粗） */
+async function verifySnaps(){
+  try{
+    const db = loadStudy();
+    const today = studyDateStr();
+    const now = new Date();
+    const afterClose = now.getHours()*60+now.getMinutes() >= 15*60;
+    const work = [];
+    db.snaps.forEach(function(s){
+      if (s.date >= today) return;
+      const nd = nextTradeDate(s.date);
+      if (!nd) return;
+      const codes = {};
+      (s.items||[]).forEach(it=>{ codes[it.code]=1; });
+      (s.auc||[]).forEach(r=>{ codes[r.code]=1; });
+      if (nd === today){
+        if (s.verifiedDone) return;
+        const hm0 = now.getHours()*60+now.getMinutes();
+        if (hm0 < 9*60+30) return; // 今日开盘前行情仍是信号日数据，开盘后再回查
+        work.push({s:s, nd:nd, mode:"rt", codes:Object.keys(codes)});
+      } else if (nd < today){
+        if (s.verifiedDone) return;
+        work.push({s:s, nd:nd, mode:"zt", codes:Object.keys(codes)});
+      }
+    });
+    if (!work.length) return;
+    for (let wi=0; wi<work.length; wi++){
+      const w = work[wi];
+      if (w.mode === "rt"){
+        const secids = w.codes.map(c=>secidOf({code:c})).join(",");
+        let q = {};
+        try{
+          const j = await jfetch(API.ulist+"?fltt=2&invt=2&fields=f2,f3,f12,f14,f15,f16,f18&secids="+encodeURIComponent(secids));
+          ((j.data && j.data.diff)||[]).forEach(d=>{ q[d.f12]=d; });
+        }catch(e){ continue; }
+        const apply = function(rec){
+          const d = q[rec.code]; if (!d) return;
+          const high=Number(d.f15), pre=Number(d.f18), cp=Number(d.f3);
+          if (!isFinite(high) || !isFinite(pre) || pre<=0) return;
+          const highPct = +((high-pre)/pre*100).toFixed(2);
+          rec.v = {nd:w.nd, mode:"rt", highPct:highPct, closePct:isFinite(cp)?+cp.toFixed(2):null, win2:highPct>=2, win1:isFinite(cp)?cp>0:null};
+        };
+        (w.s.items||[]).forEach(apply);
+        (w.s.auc||[]).forEach(apply);
+        w.s.verifiedDone = afterClose;
+        saveStudy(db);
+      } else {
+        try{
+          const j = await jfetch(API.ztPool+"?ut="+UT+"&dpt=wz.ztzt&Pageindex=0&pagesize=1000&sort=fbt%3Aasc&date="+ymdOf(w.nd));
+          const zt = {};
+          ((j.data && j.data.pool)||[]).forEach(r=>{ zt[r.c]=1; });
+          const apply = function(rec){ rec.v = {nd:w.nd, mode:"zt", zt:!!zt[rec.code]}; };
+          (w.s.items||[]).forEach(apply);
+          (w.s.auc||[]).forEach(apply);
+          w.s.verifiedDone = true;
+          saveStudy(db);
+        }catch(e){}
+      }
+      await new Promise(res=>setTimeout(res,250));
+    }
+    if (state.view === "study") renderStudy();
+  }catch(e){ console.warn("verifySnaps", e); }
+}
+function collectVerified(){
+  const db = loadStudy();
+  const G = {rec:[], core:[], watch:[], skip:[]};
+  db.snaps.forEach(function(s){
+    (s.items||[]).forEach(function(it){ if (it.v) G.rec.push(it); });
+    (s.auc||[]).forEach(function(r){ if (r.v){ const k = G[r.tier]?r.tier:"watch"; G[k].push(r); } });
+  });
+  return G;
+}
+function rtStat(arr){
+  const rt = arr.filter(x=>x.v && x.v.mode==="rt");
+  if (!rt.length) return null;
+  const w2 = rt.filter(x=>x.v.win2).length;
+  const w1 = rt.filter(x=>x.v.win1===true).length;
+  const ah = rt.reduce((a,x)=>a+x.v.highPct,0)/rt.length;
+  const ac = rt.reduce((a,x)=>a+(x.v.closePct||0),0)/rt.length;
+  return {n:rt.length, w2r:Math.round(w2/rt.length*100), w1r:Math.round(w1/rt.length*100), ah:ah.toFixed(1), ac:ac.toFixed(1)};
+}
+function ztStat(arr){
+  const z = arr.filter(x=>x.v && x.v.mode==="zt");
+  if (!z.length) return null;
+  return {n:z.length, rate:Math.round(z.filter(x=>x.v.zt).length/z.length*100)};
+}
+function renderVerify(){
+  const el = $("#studyVerify");
+  if (!el) return;
+  const G = collectVerified();
+  const defs = [
+    {key:"rec", name:"雷达综合推荐", color:"var(--down)"},
+    {key:"core", name:"竞价重点观察", color:"var(--gold)"},
+    {key:"watch", name:"竞价一般观察", color:"var(--blue)"},
+    {key:"skip", name:"竞价排除（反向验证）", color:"var(--text3)"}
+  ];
+  let cards = "";
+  let totalRt = 0;
+  defs.forEach(function(d){
+    const st = rtStat(G[d.key]); if (st) totalRt += st.n;
+    const z = ztStat(G[d.key]);
+    const small = st && st.n < 10;
+    cards += '<div style="flex:1 1 150px;min-width:150px;border:1px solid var(--line2);border-radius:10px;padding:10px 12px;background:var(--panel3)">'
+      + '<div style="font-size:12px;font-weight:700;color:'+d.color+'">'+d.name+'</div>'
+      + (st ? ('<div style="font-size:22px;font-weight:800;color:'+(st.w2r>=80?"var(--up)":(st.w2r>=60?"#FAAD14":"var(--down)"))+';margin:4px 0">'+st.w2r+'%</div>'
+        + '<div style="font-size:11px;color:var(--text2)">冲高率 · 样本 <b>'+st.n+'</b>'+(small?' <span style="color:#FAAD14">样本少</span>':'')+'</div>'
+        + '<div style="font-size:11px;color:var(--text3);margin-top:3px">收红率 '+st.w1r+'% · 均高 '+st.ah+'% · 均收 '+st.ac+'%</div>')
+        : '<div style="font-size:12px;color:var(--text3);margin-top:6px">暂无次日已验证样本</div>')
+      + (z ? '<div style="font-size:11px;color:var(--text3);margin-top:3px">漏验补录连板率 '+z.rate+'%（'+z.n+'）</div>' : '')
+      + '</div>';
+  });
+  let html = '<div style="display:flex;gap:10px;flex-wrap:wrap">'+cards+'</div>'
+    + '<div style="font-size:11.5px;color:var(--text3);margin-top:10px;line-height:1.7">口径：信号日封板买入（≈信号日收盘价），<b>冲高=次日最高价≥+2%</b>（给了卖出窗口），收红=次日收盘仍涨；均高/均收为次日相对买入价的平均幅度。精确回测样本 <b>'+totalRt+'</b> 个，每个交易日收盘后自动回查前一交易日信号并累积；漏验的历史信号仅按次日是否连板补录。样本＜10 不足以下结论，攒够样本再看胜率，避免小样本误判。</div>';
+  // 逐日失败票复盘（最近8个已验证信号日）
+  const db = loadStudy();
+  const days = db.snaps.filter(s=>s.date < studyDateStr()).slice(-8).reverse();
+  let detail = "";
+  days.forEach(function(s){
+    const rec = (s.items||[]).filter(it=>it.v && it.v.mode==="rt");
+    const core = (s.auc||[]).filter(r=>r.tier==="core" && r.v && r.v.mode==="rt");
+    function chip(it){
+      const good = it.v.win2;
+      return '<span class="his-tag" style="'+(good?"":"background:rgba(234,102,104,.15);color:var(--down)")+'">'+esc(it.name)+' '+it.v.highPct+'%</span>';
+    }
+    if (rec.length || core.length){
+      detail += '<div style="font-size:12px;margin-top:8px;padding:8px 10px;border:1px solid var(--line2);border-radius:8px"><b>'+s.date+'</b> '
+        + (rec.length?('<span style="color:var(--text3)">推荐：</span>'+rec.map(chip).join(" ")):"")
+        + (core.length?('<span style="color:var(--text3);margin-left:6px">竞价重点：</span>'+core.map(chip).join(" ")):"")
+        + '</div>';
+    }
+  });
+  if (detail) html += '<div style="margin-top:6px">'+detail+'</div>';
+  el.innerHTML = html;
+}
+function csvCell(v){
+  if (v == null) return "";
+  const s = String(v);
+  return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+}
+function exportStudyCsv(){
+  const db = loadStudy();
+  const head = ["信号日","来源","代码","名称","评分","竞价涨幅%","量比","连板","档位","次日日期","次日最高涨幅%","次日收盘涨幅%","冲高(最高≥2%)","收红","次日连板","验证方式"];
+  const lines = [head.join(",")];
+  const vcols = v => {
+    if (!v) return ["","","","","",""];
+    if (v.mode==="zt") return [v.nd,"","","","",(v.zt?"是":"否"),"涨停池补录"];
+    return [v.nd, v.highPct, (v.closePct==null?"":v.closePct), (v.win2?"是":"否"), (v.win1==null?"":(v.win1?"是":"否")), "", "实时行情精确"];
+  };
+  db.snaps.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(function(s){
+    (s.items||[]).forEach(function(it){
+      lines.push([s.date,"雷达推荐",it.code,it.name,it.score,"","","",""].concat(vcols(it.v)).map(csvCell).join(","));
+    });
+    (s.auc||[]).forEach(function(r){
+      lines.push([s.date,"竞价-"+tierName(r.tier),r.code,r.name,"",(r.ag==null?"":r.ag),(r.vr==null?"":r.vr),(r.lbc==null?"":r.lbc),tierName(r.tier)].concat(vcols(r.v)).map(csvCell).join(","));
+    });
+  });
+  const blob = new Blob(["﻿"+lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "daban-huice-"+studyDateStr()+".csv";
+  a.click();
+}
+
+/* ===== 以下替换原 autoSnap ===== */
 function autoSnap(){
   try{
     const now = new Date();
     const hm = now.getHours()*60 + now.getMinutes();
     if (hm < 15*60) return; // 未收盘不记
     const today = studyDateStr();
-    const db = loadStudy();
-    if (db.snaps.some(s => s.date === today)) return; // 今天已记过
+    const db0 = loadStudy();
+    const ex = db0.snaps.find(x=>x.date===today);
+    if (ex && ex.items && ex.items.length) return; // 今日推荐池已记
     if (!state.recPool || !state.recPool.length) return;
-    db.snaps.push({ date: today, time: now.toTimeString().slice(0,5), pass: effectivePass(), auto: true, items: state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode]}; }) });
-    saveStudy(db);
+    const items = state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode]}; });
+    upsertSnap(today, {items:items, pass:effectivePass(), auto:true, time:now.toTimeString().slice(0,5)});
     if (state.view === "study") renderStudy();
   }catch(e){}
 }
+
 
 async function autoLoadDataFile(){
   try{
@@ -2112,6 +2322,7 @@ async function renderAuction(){
   skip.innerHTML = groups.skip.length ? groups.skip.map(r=>aucCard(r,r._c)).join("") : '<div style="grid-column:1/-1;font-size:12px;color:var(--text3);padding:10px">无</div>';
   const cnt = $("#cntAuc"); if (cnt) cnt.textContent = groups.core.length;
   if (elStatus) elStatus.innerHTML = "基准：<b>"+String(a.date).slice(0,4)+"-"+String(a.date).slice(4,6)+"-"+String(a.date).slice(6,8)+"</b> 昨日涨停池 "+a.rows.length+" 只（1-3板）｜重点 <b style='color:var(--down)'>"+groups.core.length+"</b> · 一般 "+groups.watch.length+" · 排除 "+groups.skip.length+"　|　纪律：竞价只看不买，封板+评分≥85才出手";
+  maybeAucSnap();
 }
 async function refreshAuction(){ state.auction = null; await renderAuction(); }
 
@@ -2245,6 +2456,8 @@ async function init(){
   loadYesterday().then(y => { state.yest = y; renderAllViews(); }).catch(() => {});
   // v10 竞价名单：进入页面即加载，9:15-15:00 每60秒自动刷新
   renderAuction().catch(()=>{});
+  verifySnaps().catch(()=>{});
+  setInterval(() => { verifySnaps().catch(()=>{}); }, 10*60*1000);
   setInterval(() => { if (state.view === "auction") refreshAuction().catch(()=>{}); }, 60*1000);
   await refresh();
   if (isTradeTime()){
