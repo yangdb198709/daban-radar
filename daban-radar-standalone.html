@@ -120,6 +120,17 @@ select{font-family:inherit;cursor:pointer}
 .rcard .chg{font-size:13px;font-weight:700;color:var(--up)}
 .rcard .stats{display:flex;gap:14px;margin-top:9px;flex-wrap:wrap;font-size:11.5px;color:var(--text2)}
 .rcard .stats b{color:var(--text);font-weight:700}
+.tag.kg{font-weight:900;border-radius:6px;padding:1px 7px;font-size:10.5px}
+.tag.kg-A{background:var(--down-bg);color:var(--down);border:1px solid var(--down)}
+.tag.kg-S{background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold)}
+.tag.kg-B{background:var(--up-bg);color:var(--up);border:1px solid var(--up)}
+.rcard.kg-A{border:1.5px solid var(--down) !important}
+.rcard.kg-S{border:1.5px solid var(--gold) !important}
+.rcard.kg-B{opacity:.7}
+.kline{margin-top:7px;font-size:11.5px;line-height:1.55;border-radius:8px;padding:5px 9px;font-weight:700}
+.kline.A{background:var(--down-bg);color:var(--down)}
+.kline.S{background:var(--gold-bg);color:var(--gold)}
+.kline.B{background:var(--up-bg);color:var(--up)}
 .reasons{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:4px}
 .reason{font-size:11.5px;color:var(--text2);display:flex;gap:6px;align-items:baseline}
 .reason .ok{color:var(--down);font-weight:900}
@@ -310,7 +321,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v10.2</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v11</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -360,13 +371,13 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
     <div class="panel" style="border-color:var(--gold);background:linear-gradient(135deg,var(--panel2),var(--panel))">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:15px;font-weight:900;color:var(--gold)">📡 9:25 竞价观察名单</span>
-        <span style="font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;background:var(--gold-bg);color:var(--gold)">v10.2 量价结合 · 抱团周期闸门</span>
+        <span style="font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;background:var(--gold-bg);color:var(--gold)">v11 可打性 S/A/B · 量价结合</span>
         <span id="aucPhase" style="font-size:11px;color:var(--text3)"></span>
         <div style="flex:1"></div>
         <button class="mini-btn" onclick="refreshAuction()" style="padding:6px 14px;border-radius:8px;border:1px solid var(--line2);background:var(--panel3);color:var(--text);font-weight:700;cursor:pointer">🔄 刷新竞价</button>
       </div>
       <div style="margin-top:12px;padding:11px 13px;border-radius:10px;background:var(--up-bg);border:1px solid var(--up);font-size:12.5px;line-height:1.85;color:var(--text)">
-        <b style="color:var(--up)">⚠️ 只筛不买，不在集合竞价下单。</b>v10.2 按<b>「竞价涨幅 × 量比 × 连板身位 × 昨换手 × 昨日封板质量 × 情绪周期」</b>分层：<b style="color:var(--gold)">强势通道</b>=最高标/一字（买不进，盯开板回封）；<b style="color:var(--down)">重点</b>=高开温和放量抢筹 或 缩量弱转强且昨日0炸板；<b style="color:var(--up)">放量低开/爆量高开直接红警排除</b>。抱团高潮期自动回避中位2-3板。<b style="color:var(--down)">买入仍要等9:30后封板＋「综合推荐」达标</b>，9:30后本页自动回标每只票封板/冲高/走弱并统计命中率。
+        <b style="color:var(--up)">⚠️ 只筛不买，不在集合竞价下单。</b>v10.2 按<b>「竞价涨幅 × 量比 × 连板身位 × 昨换手 × 昨日封板质量 × 情绪周期」</b>分层：<b style="color:var(--gold)">强势通道</b>=最高标/一字（买不进，盯开板回封）；<b style="color:var(--down)">重点</b>=高开温和放量抢筹 或 缩量弱转强且昨日0炸板；<b style="color:var(--up)">放量低开/爆量高开直接红警排除</b>。抱团高潮期自动回避中位2-3板。<b style="color:var(--down)">买入仍要等9:30后封板＋「综合推荐」<b style="color:var(--down)">A档绿勾</b>（S一字排不进、B易炸不打）</b>，9:30后本页自动回标每只票封板/冲高/走弱并统计命中率。
       </div>
       <div id="aucStatus" style="margin-top:10px;font-size:12px;color:var(--text3)"></div>
     </div>
@@ -378,7 +389,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
     <div class="grid cards" id="aucWatch"></div>
     <div class="sec-label">🚫 竞价排除 · 红警（放量低开抢跑 / 爆量高开分歧 / 大幅低开 / 换手异常）</div>
     <div class="grid cards" id="aucSkip"></div>
-    <div class="notice">竞价数据来自东方财富公开行情接口（约10秒延迟）。9:15-9:25为虚拟撮合、价格会变，<b>9:25定稿</b>后才可靠；量比(f10)在9:25前后偶有缺失，缺失时该股<b>不做重点、降级一般观察</b>。<b style="color:var(--gold)">强势通道</b>仅作情绪风向与开板回封盯盘，<b>不可在一字板上挂单追高</b>；<b style="color:var(--up)">红警</b>为竞价排雷，放量低开/爆量高开当日接力风险高。竞价模型 v10.2 处于实盘验证期，命中率以9:30后自动回标和「策略研究」累计样本为准，样本＜10不足以下结论，<b>本页不构成投资建议</b>。</div>
+    <div class="notice">竞价数据来自东方财富公开行情接口（约10秒延迟）。9:15-9:25为虚拟撮合、价格会变，<b>9:25定稿</b>后才可靠；量比(f10)在9:25前后偶有缺失，缺失时该股<b>不做重点、降级一般观察</b>。<b style="color:var(--gold)">强势通道</b>仅作情绪风向与开板回封盯盘，<b>不可在一字板上挂单追高</b>；<b style="color:var(--up)">红警</b>为竞价排雷，放量低开/爆量高开当日接力风险高。竞价模型 v11 处于实盘验证期，命中率以9:30后自动回标和「策略研究」累计样本为准，样本＜10不足以下结论，<b>本页不构成投资建议</b>。</div>
   </section>
 
   <!-- ===== 首板 ===== -->
@@ -671,7 +682,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
-<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v10.2</b>（2026-09-21 更新）· <b>v10.2 竞价重构</b>：量价结合（放量低开/爆量高开直接红警）· 抱团高潮周期闸门（自动回避中位2-3板）· 新增「强势通道」（最高标/一字盯开板回封）· 9:30后竞价名单实时封板/冲高/走弱验证与命中率统计 · 观察范围放开至最高板 · v10.1 竞价名单自动落盘+次日真实冲高自动回查+一键导出回测CSV · v10 9:25竞价名单（只筛不买，封板+评分达标两道关）· P0 节前因子 · P1 炸板率收紧达标线 · P2 90%+候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不弹窗）</div>
+<div class="footer-note" style="margin-bottom:4px">打板雷达 <b>v11</b>（2026-09-21 更新）· <b>v11 可打性三档</b>：S=一字/巨单封死排不进（只观察不追）· A=换手3-25%＋10:30前封＋封单适中（开板回封唯一可打·绿勾）· B=反复开板/爆量&gt;30%/薄封单/尾盘板（易炸放弃）· 无A达标即空仓 · v10.2 竞价重构：量价结合（放量低开/爆量高开直接红警）· 抱团高潮周期闸门（自动回避中位2-3板）· 新增「强势通道」（最高标/一字盯开板回封）· 9:30后竞价名单实时封板/冲高/走弱验证与命中率统计 · 观察范围放开至最高板 · v10.1 竞价名单自动落盘+次日真实冲高自动回查+一键导出回测CSV · v10 9:25竞价名单（只筛不买，封板+评分达标两道关）· P0 节前因子 · P1 炸板率收紧达标线 · P2 90%+候选推荐 · 关键节点弹窗（入选红/退出绿，普通涨停不弹窗）</div>
 <div class="footer-note">本工具为数据采集与量化分析工具，结果仅供研究参考，<b>不构成任何投资建议</b>；打板为高风险短线策略，请独立判断、控制仓位、自负盈亏。数据源：东方财富公开接口（约5-10秒延迟）。</div>
 
 <script>
@@ -772,7 +783,7 @@ const state = {
 };
 
 /* ===== v5 版本与节前因子 ===== */
-const APP_VER = "v10.2";
+const APP_VER = "v11";
 const APP_VER_DATE = "2026-09-21";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -1027,6 +1038,47 @@ function scoreStock(s, secMap){
   return { dims, scores, reasons, sealPct, secCount: scCount, fbtMin };
 }
 
+/* ===== v11 可打性三档 S/A/B：解决"太强买不进、太弱怕炸板" =====
+   只用涨停池实时字段：fbt首封时间 fund封单额 ltsz流通市值 amount成交额 hs换手 zbc炸板次数 zdp涨幅
+   S=一字/T字/巨单封死，排不进，只观察不挂单；
+   A=换手3-25% + 10:30前封 + 封单中等偏厚 + 开板<=1，开板回封那一下唯一可排队打；
+   B=反复开板/爆量>30%/薄封单/14:00后尾盘板，易炸，放弃。 */
+function strikeGrade(s){
+  const fbtMin = hhmm2min(s.fbt);
+  const hs = s.hs || 0, zbc = s.zbc || 0, zdp = s.zdp || 0;
+  const sealPct = (s.fund && s.ltsz) ? s.fund / s.ltsz * 100 : null;  // 封单占流通市值%
+  const fundAmt = (s.fund && s.amount) ? s.fund / s.amount : null;     // 封单/今日成交(倍)
+  const th = ztThreshold(s);
+  const sealedNow = zdp >= th - 0.3;
+  const oneWord  = sealedNow && hs < 2 && zbc === 0 && fbtMin <= 578;  // 9:38前封死+换手<2%+0开板=一字/T字
+  const hugeSeal = sealPct != null && sealPct >= 6;                    // 封单占流通6%+巨单
+  const reOpen   = zbc >= 2;                                           // 反复撬板
+  const blowVol  = hs > 30;                                            // 爆量分歧
+  const weakSeal = sealPct != null && sealPct < 0.7;                   // 封单太薄
+  const lateSeal = fbtMin > 810;                                       // 14:00后偷袭
+  let g, why;
+  if (oneWord) { g="S"; why="一字/T字板·换手仅"+hs.toFixed(1)+"%·0开板，排不进，只观察不追"; }
+  else if (hugeSeal) { g="S"; why="封单占流通市值"+sealPct.toFixed(1)+"%·巨单封死难成交，只观察"; }
+  else if (reOpen) { g="B"; why=zbc+"次开板·反复撬板，回封无力易炸，放弃"; }
+  else if (blowVol) { g="B"; why="换手"+hs.toFixed(0)+"%·爆量分歧，接力风险大，放弃"; }
+  else if (weakSeal) { g="B"; why="封单仅占流通"+sealPct.toFixed(1)+"%·封单太薄一碰就开，放弃"; }
+  else if (lateSeal) { g="B"; why=fmtTime(s.fbt)+"才封·尾盘偷袭溢价弱，放弃"; }
+  else {
+    const goodTime = fbtMin <= 630;                                    // 10:30前
+    const goodHs   = hs >= 3 && hs <= 25;                              // 健康换手：买得到又不爆量
+    const goodSeal = sealPct == null ? true : sealPct >= 1.2;          // 封单中等偏厚
+    if (goodTime && zbc <= 1 && goodHs && goodSeal) {
+      g="A"; why="换手"+hs.toFixed(1)+"%·"+fmtTime(s.fbt)+"封·"+(zbc===0?"一次封死":"开板1次速回封")+"，封单适中，回封可排队";
+    } else {
+      g="B"; const w=[];
+      if(!goodTime) w.push("封板偏晚");
+      if(!goodHs) w.push(hs<3 ? "换手"+hs.toFixed(1)+"%偏低偏一字买不进" : "换手"+hs.toFixed(0)+"%偏大易炸");
+      if(!goodSeal) w.push("封单偏薄");
+      why=w.join("·")+"，不在最佳击球区，放弃";
+    }
+  }
+  return { g:g, why:why, sealPct:sealPct, fundAmt:fundAmt, fbtMin:fbtMin, hs:hs, zbc:zbc };
+}
 function gradeOf(v){ return v >= 85 ? "极强" : v >= 75 ? "强" : v >= 60 ? "中" : "弱"; }
 function gradeColor(v){ return v >= 85 ? "var(--up)" : v >= 75 ? "var(--gold)" : v >= 60 ? "var(--blue)" : "var(--text3)"; }
 
@@ -1191,7 +1243,7 @@ function renderRecommend(){
 
   // v6：达标（≥动态线）优先 + 候选（≥90%且未达动态线）也进推荐，达标优先、灵活选择
   const ztCount = state.zt.length;
-  const scored = state.zt.map(s => ({ s, sc: scoreStock(s, secMap), hq: histQualify(s, ztCount) }));
+  const scored = state.zt.map(s => ({ s, sc: scoreStock(s, secMap), hq: histQualify(s, ztCount), kg: strikeGrade(s) }));
   const passLine = effectivePass();
   const qualified = scored.filter(x => x.hq.pass);
   const candidates = scored.filter(x => !x.hq.pass && x.hq.hit && x.hq.hit.w2 >= 90);
@@ -1201,8 +1253,9 @@ function renderRecommend(){
   const tops = pool.filter(x => x.s.isTop || x.s.lbc >= 3).sort((a,b) => (b.hq.pass - a.hq.pass) || (b.sc.scores.longtou - a.sc.scores.longtou)).slice(0, 3);
   const merged = [...sb.map(x => ({...x, mode:"shouban"})), ...lb.map(x => ({...x, mode:"lianban"})), ...tops.map(x => ({...x, mode:"longtou"}))];
   const seen = new Set();
+  const kgRank = { A:0, S:1, B:2 };
   const recs = merged.filter(x => !seen.has(x.s.code) && (seen.add(x.s.code), true))
-    .sort((a,b) => (b.hq.pass - a.hq.pass) || (b.sc.scores[b.mode] - a.sc.scores[a.mode])).slice(0, 9);
+    .sort((a,b) => (kgRank[a.kg.g] - kgRank[b.kg.g]) || (b.hq.pass - a.hq.pass) || (b.sc.scores[b.mode] - a.sc.scores[a.mode])).slice(0, 9);
 
   // v6.1 关键节点弹窗：入选/退出打板推荐（仅盘中；入选=红 t-up，退出=绿 t-down）
   if (state.inSession && state.loadOk){
@@ -1222,7 +1275,11 @@ function renderRecommend(){
     state.recPool = recs;
   }
 
-  $("#recLabel").innerHTML = `今日打板推荐<span onclick="generateShot()" style="font-size:11px;color:var(--blue);font-weight:700;margin-left:8px;cursor:pointer;padding:2px 8px;background:var(--blue-bg);border-radius:6px">📸 生成图片发微信</span><span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px">达标线 ${effectivePass()}%：达标 <b style="color:var(--down)">${qualified.length}</b> 家 · 候选 <b style="color:#FAAD14">${candidates.length}</b> 家（≥90%）· 不达标宁可空仓${!qualified.length ? ' <b style="color:#FAAD14">⚠今日无达标，候选仅供灵活参考</b>' : ""}</span>`;
+  const aPassN = recs.filter(x => x.kg.g === "A" && x.hq.pass).length;
+  const aCandN = recs.filter(x => x.kg.g === "A" && !x.hq.pass).length;
+  const sN = recs.filter(x => x.kg.g === "S").length;
+  const bN = recs.filter(x => x.kg.g === "B").length;
+  $("#recLabel").innerHTML = `今日打板推荐<span onclick="generateShot()" style="font-size:11px;color:var(--blue);font-weight:700;margin-left:8px;cursor:pointer;padding:2px 8px;background:var(--blue-bg);border-radius:6px">📸 生成图片发微信</span><span style="font-size:11px;color:var(--text3);font-weight:400;margin-left:6px"><b style="color:var(--down)">🎯 A 可打 ${aPassN}</b> 家（A候选 ${aCandN}）· <b style="color:var(--gold)">S 一字观察 ${sN}</b> 家 · <b style="color:var(--up)">B 放弃 ${bN}</b> 家 · 达标线 ${effectivePass()}%${aPassN === 0 ? ' <b style="color:var(--up)">⚠今日无A档可打（S买不进·B易炸），建议空仓</b>' : ' · 只打A档绿勾，开板回封排队'}</span>`;
   $("#cntRec").textContent = recs.length;
 
     const recEmpty = !recs.length ? (state.zt.length ? `
@@ -1274,9 +1331,20 @@ function renderRecommend(){
   $("#recGrid").innerHTML = recEmpty || recs.map((x, i) => {
         const s = x.s; const v = x.sc.scores[x.mode];
         const modeTag = x.mode === "longtou" ? `<span class="tag m-longtou">龙头</span>` : x.mode === "lianban" ? `<span class="tag m-lianban">${s.lbc}连板</span>` : `<span class="tag m-shouban">首板</span>`;
-        const winBadge = x.hq.pass
-          ? '<span class="win-badge pass">✓ ' + x.hq.hit.w2 + '%</span>'
-          : '<span class="win-badge" style="background:#FAAD14;color:#1A1B1C;border:none;box-shadow:0 1px 4px rgba(250,173,20,.45)">' + x.hq.hit.w2 + '% 候选</span>';
+        let winBadge, kgBadge;
+        if (x.kg.g === "A"){
+          kgBadge = '<span class="tag kg kg-A">🎯 A 可打</span>';
+          winBadge = x.hq.pass
+            ? '<span class="win-badge pass">✓可打 ' + x.hq.hit.w2 + '%</span>'
+            : '<span class="win-badge" style="background:#FAAD14;color:#1A1B1C;border:none;box-shadow:0 1px 4px rgba(250,173,20,.45)">A候选 ' + x.hq.hit.w2 + '%</span>';
+        } else if (x.kg.g === "S"){
+          kgBadge = '<span class="tag kg kg-S">S 一字·只观察</span>';
+          winBadge = '<span class="win-badge" style="background:var(--gold-bg);color:var(--gold);border:1px solid var(--gold)">排不进·不追</span>';
+        } else {
+          kgBadge = '<span class="tag kg kg-B">B 易炸·放弃</span>';
+          winBadge = '<span class="win-badge" style="background:var(--up-bg);color:var(--up);border:1px solid var(--up)">不打</span>';
+        }
+        const kgLine = '<div class="kline ' + x.kg.g + '">🎯 ' + x.kg.why + (x.kg.fundAmt != null ? '（封单/成交 ' + x.kg.fundAmt.toFixed(2) + ' 倍）' : '') + '</div>';
         const reasonHtml = x.sc.reasons.map(r =>
           `<div class="reason"><span class="${r.ok ? "ok" : r.bad ? "bad" : r.warn ? "warn" : "t"}">${r.ok ? "✓" : r.bad ? "✕" : r.warn ? "!" : "·"}</span><span class="t">${r.txt}</span></div>`).join("");
         const riskTags = [];
@@ -1286,7 +1354,7 @@ function renderRecommend(){
         if ((s.hs || 0) > 20) riskTags.push("换手" + s.hs.toFixed(0) + "%放量分歧");
         const riskHtml = riskTags.length ? '<div class="risk-line">⚠️ ' + riskTags.join(" · ") + '（标注提示，不影响评分）</div>' : "";
         return `
-        <div class="rcard" data-code="${s.code}">
+        <div class="rcard kg-${x.kg.g}" data-code="${s.code}">
           <div class="rank">#${i+1}</div>
           <div class="top">
             <div class="score-ring" style="background:conic-gradient(${gradeColor(v)} ${v*3.6}deg, var(--panel3) 0)">
@@ -1294,7 +1362,7 @@ function renderRecommend(){
             </div>
             <div>
               <div class="name">${esc(s.name)}<span class="code tnum">${s.code}</span></div>
-              <div class="tags">${modeTag}${winBadge}<span class="tag board">${is20cm(s.code) ? "20cm" : "10cm"}</span><span class="tag lbc tnum">${s.lbc}板</span></div>
+              <div class="tags">${kgBadge}${modeTag}${winBadge}<span class="tag board">${is20cm(s.code) ? "20cm" : "10cm"}</span><span class="tag lbc tnum">${s.lbc}板</span></div>
               <div class="price-row"><span class="price tnum">${fmtPrice(s.price)}</span><span class="chg tnum">${fmtPct(s.zdp)}</span></div>
             </div>
           </div>
@@ -1305,6 +1373,7 @@ function renderRecommend(){
             <span>${esc(s.hybk)} <b class="tnum">${x.sc.secCount}家</b></span>
           </div>
           <div class="hit-line" style="color:${x.hq.pass ? "" : "#FAAD14"}">历史打板成功率 <b>${x.hq.hit.w2}%</b><span style="color:var(--text3)">（样本 ${x.hq.hit.n} 次 · ${esc(x.hq.hit.label)}）</span> · 隔日收盘盈利 ${x.hq.hit.w1}%</div>
+          ${kgLine}
           ${riskHtml}
           <div class="reasons">${reasonHtml}</div>
         </div>`;
@@ -1701,7 +1770,7 @@ function bindStudy(){
   const b2 = $("#btnSnap");
   if (b2) b2.onclick = function(){
     if (!state.recPool || !state.recPool.length) { alert("请先打开「综合推荐」让推荐数据加载出来，再回来点快照。"); return; }
-    const items = state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode]}; });
+    const items = state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode], grade:(x.kg?x.kg.g:null)}; });
     upsertSnap(studyDateStr(), {items:items, pass:effectivePass(), time:new Date().toTimeString().slice(0,5)});
     renderStudy();
   };
@@ -1939,7 +2008,7 @@ function autoSnap(){
     const ex = db0.snaps.find(x=>x.date===today);
     if (ex && ex.items && ex.items.length) return; // 今日推荐池已记
     if (!state.recPool || !state.recPool.length) return;
-    const items = state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode]}; });
+    const items = state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode], grade:(x.kg?x.kg.g:null)}; });
     upsertSnap(today, {items:items, pass:effectivePass(), auto:true, time:now.toTimeString().slice(0,5)});
     if (state.view === "study") renderStudy();
   }catch(e){}
@@ -2351,7 +2420,14 @@ function aucCard(r, cls){
   else { border="1px solid var(--gold)"; op="1"; dotCls="warn"; }
   const vrHot = r.vr >= 10;
   let sealTag = "";
-  if (sealed) sealTag = '<span class="tag" style="background:var(--down-bg);color:var(--down)">✓已封板·去综合推荐看评分</span>';
+  if (sealed){
+    const zst = (state.zt||[]).find(function(z){return z.code===r.code;});
+    const zkg = zst ? strikeGrade(zst) : null;
+    if (zkg && zkg.g==="A") sealTag='<span class="tag" style="background:var(--down-bg);color:var(--down)">✓回封A档·可排队打</span>';
+    else if (zkg && zkg.g==="S") sealTag='<span class="tag" style="background:var(--gold-bg);color:var(--gold)">一字封死·排不进</span>';
+    else if (zkg && zkg.g==="B") sealTag='<span class="tag" style="background:var(--up-bg);color:var(--up)">回封B档·易炸不打</span>';
+    else sealTag='<span class="tag" style="background:var(--down-bg);color:var(--down)">✓已封板·去综合推荐看档位</span>';
+  }
   else if (rtReady && r.rtPct != null){
     if (cls.tier==="strong" && r.rtPct < 9) sealTag = '<span class="tag" style="background:var(--gold-bg);color:var(--gold)">⚠一字开板 现'+(r.rtPct>=0?"+":"")+r.rtPct.toFixed(1)+'%</span>';
     else if (r.rtHigh != null && r.rtHigh >= 2) sealTag = '<span class="tag" style="background:var(--gold-bg);color:var(--gold)">冲高'+(r.rtHigh>=0?"+":"")+r.rtHigh.toFixed(1)+'%未封</span>';
