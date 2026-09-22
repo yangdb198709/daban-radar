@@ -138,10 +138,24 @@ select{font-family:inherit;cursor:pointer}
 .reason .bad{color:var(--up);font-weight:900}
 .reason .t{color:var(--text3)}
 .rcard .rank{position:absolute;top:12px;right:14px;font-size:11px;color:var(--text3);font-weight:700}
-/* v12 龙头小标（不占额外行，紧跟名称） */
+/* v12 龙头小标（不占额外行，紧跟名称）；v13 统一金色 */
 .leader-mini{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:6px;margin-left:6px;vertical-align:middle;line-height:15px;white-space:nowrap}
 .leader-mini.top{background:linear-gradient(135deg,#f0b90b,#ffd24d);color:#2a1f00;border:1px solid #f0b90b}
-.leader-mini.sec{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue)}
+.leader-mini.sec{background:rgba(240,185,11,.16);color:#f5c531;border:1px solid rgba(240,185,11,.6)}
+/* v13 封单高亮条（服务9:30抢筹，封单厚度一眼可见） */
+.fund-bar{display:flex;align-items:baseline;gap:8px;margin:9px 0 2px;padding:7px 10px;border-radius:9px;
+  background:linear-gradient(90deg,rgba(240,185,11,.16),rgba(240,185,11,.04));
+  border:1px solid rgba(240,185,11,.45);border-left:3px solid #f0b90b}
+.fund-bar .fb-lab{font-size:11px;font-weight:800;color:#f0b90b;letter-spacing:1px;flex:none}
+.fund-bar .fb-amt{font-size:17px;font-weight:900;color:#ffd24d;line-height:1}
+.fund-bar .fb-ratio{margin-left:auto;font-size:10.5px;font-weight:700;color:var(--text2);text-align:right;line-height:1.3}
+.fund-bar .fb-ratio b{color:#f0b90b;font-size:12.5px}
+.fund-bar.thin{background:linear-gradient(90deg,rgba(234,102,104,.14),rgba(234,102,104,.04));border-color:rgba(234,102,104,.45);border-left-color:#EA6668}
+.fund-bar.thin .fb-lab{color:#EA6668}
+.fund-bar.thin .fb-amt{color:#ff8a8c}
+.fund-bar.thin .fb-ratio b{color:#EA6668}
+/* v13 板制说明下沉卡片底部 */
+.board-note{margin-top:7px;font-size:10px;color:var(--text3);text-align:right;line-height:1.4}
 
 /* ============ 历史胜率徽章与空仓建议 ============ */
 .win-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:20px}
@@ -323,7 +337,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v12.0</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v13.0</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -785,7 +799,7 @@ const state = {
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v12.0";
+const APP_VER = "v13.0";
 const APP_VER_DATE = "2026-09-22";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -1285,8 +1299,8 @@ function leaderTagHtml(code){
   const L = (state.secLeader || {})[code];
   if (!L) return "";
   return L.role === "top"
-    ? '<span class="leader-mini top">👑总龙</span>'
-    : '<span class="leader-mini sec">龙·' + esc(L.sec || "") + '</span>';
+    ? '<span class="leader-mini top">👑总龙头</span>'
+    : '<span class="leader-mini sec">龙头·' + esc(L.sec || "") + '</span>';
 }
 
 /* ===== 渲染：推荐卡 ===== */
@@ -1295,10 +1309,10 @@ function cardHtml(s, rank){
   const hq = histQualify(s, state.zt.length);
   const mainMode = s.lbc > 1 ? "lianban" : "shouban";
   const v = sc.scores[mainMode];
-  const modeTag = s.lbc > 1
-    ? (s.isTop ? `<span class="tag m-longtou">总龙头</span>` : `<span class="tag m-lianban">${s.lbc}连板</span>`)
-    : `<span class="tag m-shouban">首板</span>`;
   const tagCls = s.lbc >= 4 ? "lb4" : s.lbc >= 3 ? "lb3" : s.lbc === 2 ? "lb2" : "lb1";
+  const modeTag = s.lbc === 1
+    ? '<span class="tag m-shouban">首板</span>'
+    : '<span class="tag tnum ' + tagCls + '">' + s.lbc + '板</span>';
   const phc = preHolidayFactor();
   let fesTag = "";
   if (phc.active && phc.adj !== 0){
@@ -1310,6 +1324,10 @@ function cardHtml(s, rank){
   const reasonHtml = sc.reasons.map(r =>
     `<div class="reason"><span class="${r.ok ? "ok" : r.bad ? "bad" : r.warn ? "warn" : "t"}">${r.ok ? "✓" : r.bad ? "✕" : r.warn ? "!" : "·"}</span><span class="t">${r.txt}</span></div>`
   ).join("");
+  const frc = s.amount ? s.fund / s.amount : null;
+  const thinc = frc != null && frc < 0.3;
+  const fundBar = '<div class="fund-bar'+(thinc?' thin':'')+'"><span class="fb-lab">封单</span><span class="fb-amt tnum">'+fmtNum(s.fund)+'</span><span class="fb-ratio">封成比 '+(frc!=null?'<b>'+frc.toFixed(2)+' 倍</b>':'--')+(thinc?'<br>封单偏薄·易炸':'')+'</span></div>';
+  const boardNote = '<div class="board-note">'+(is20cm(s.code)?'创业板/科创板 · ±20%涨跌幅（20cm）':'主板 · ±10%涨跌幅（10cm）')+'</div>';
   return `
   <div class="rcard" data-code="${s.code}" data-mode="${mainMode}">
     <div class="rank">#${rank}</div>
@@ -1319,10 +1337,11 @@ function cardHtml(s, rank){
       </div>
       <div>
         <div class="name">${esc(s.name)}${leaderTagHtml(s.code)}<span class="code tnum">${s.code}</span></div>
-        <div class="tags">${modeTag}${fesTag}<span class="tag board">${is20cm(s.code) ? "20cm" : "10cm"}</span><span class="tag lbc tnum">封单 ${fmtNum(s.fund)}</span></div>
+        <div class="tags">${modeTag}${fesTag}</div>
         <div class="price-row"><span class="price tnum">${fmtPrice(s.price)}</span><span class="chg tnum">${fmtPct(s.zdp)}</span></div>
       </div>
     </div>
+    ${fundBar}
     <div class="stats">
       <span>封板 <b class="tnum">${fmtTime(s.fbt)}</b></span>
       <span>炸板 <b class="tnum">${s.zbc}次</b></span>
@@ -1331,6 +1350,7 @@ function cardHtml(s, rank){
     </div>
     ${hq.hit ? `<div class="hit-line">历史胜率 <b style="color:${hq.pass ? "var(--down)" : "var(--gold)"}">${hq.hit.w2}%</b><span style="color:var(--text3)">（${esc(hq.hit.label)} · 样本 ${hq.hit.n}）</span>${hq.pass ? `<span class="win-badge pass" style="margin-left:auto">✓ 达标</span>` : ""}</div>` : ""}
     <div class="reasons">${reasonHtml}</div>
+    ${boardNote}
   </div>`;
 }
 
@@ -1498,7 +1518,10 @@ function renderRecommend(){
 
   $("#recGrid").innerHTML = recEmpty || recs.map((x, i) => {
         const s = x.s; const v = x.sc.scores[x.mode];
-        const modeTag = x.mode === "longtou" ? `<span class="tag m-longtou">龙头</span>` : x.mode === "lianban" ? `<span class="tag m-lianban">${s.lbc}连板</span>` : `<span class="tag m-shouban">首板</span>`;
+        const tagCls = s.lbc >= 4 ? "lb4" : s.lbc >= 3 ? "lb3" : s.lbc === 2 ? "lb2" : "lb1";
+        const heightTag = s.lbc === 1
+          ? '<span class="tag m-shouban">首板</span>'
+          : '<span class="tag tnum ' + tagCls + '">' + s.lbc + '板</span>';
         let winBadge, kgBadge;
         if (x.kg.g === "A"){
           kgBadge = '<span class="tag kg kg-A">🎯 A 可打</span>';
@@ -1512,7 +1535,15 @@ function renderRecommend(){
           kgBadge = '<span class="tag kg kg-B">B 易炸</span>';
           winBadge = '<span class="win-badge fail">✕ 易炸 ' + x.hq.hit.w2 + '%</span>';
         }
-        const kgLine = '<div class="kline ' + x.kg.g + '">🎯 ' + x.kg.why + (x.kg.fundAmt != null ? '（封单/成交 ' + x.kg.fundAmt.toFixed(2) + ' 倍）' : '') + '</div>';
+        // v13 封单高亮条：封单额大字 + 封成比，薄封单(<0.3倍)红色警示，服务9:30抢筹
+        const fr = (x.kg.fundAmt != null) ? x.kg.fundAmt : (s.amount ? s.fund / s.amount : null);
+        const thin = fr != null && fr < 0.3;
+        const fundBar = '<div class="fund-bar' + (thin ? ' thin' : '') + '">'
+          + '<span class="fb-lab">封单</span>'
+          + '<span class="fb-amt tnum">' + fmtNum(s.fund) + '</span>'
+          + '<span class="fb-ratio">封成比 ' + (fr != null ? '<b>' + fr.toFixed(2) + ' 倍</b>' : '--') + (thin ? '<br>封单偏薄·易炸' : '') + '</span>'
+          + '</div>';
+        const kgLine = '<div class="kline ' + x.kg.g + '">🎯 ' + x.kg.why + '</div>';
         const reasonHtml = x.sc.reasons.map(r =>
           `<div class="reason"><span class="${r.ok ? "ok" : r.bad ? "bad" : r.warn ? "warn" : "t"}">${r.ok ? "✓" : r.bad ? "✕" : r.warn ? "!" : "·"}</span><span class="t">${r.txt}</span></div>`).join("");
         const riskTags = [];
@@ -1521,6 +1552,7 @@ function renderRecommend(){
         if ((s.zbc || 0) >= 1) riskTags.push("今日" + (s.zbc + 1) + "次封板");
         if ((s.hs || 0) > 20) riskTags.push("换手" + s.hs.toFixed(0) + "%放量分歧");
         const riskHtml = riskTags.length ? '<div class="risk-line">⚠️ ' + riskTags.join(" · ") + '（标注提示，不影响评分）</div>' : "";
+        const boardNote = '<div class="board-note">' + (is20cm(s.code) ? '创业板/科创板 · ±20%涨跌幅（20cm）' : '主板 · ±10%涨跌幅（10cm）') + '</div>';
         return `
         <div class="rcard kg-${x.kg.g}" data-code="${s.code}">
           <div class="rank">#${i+1}</div>
@@ -1530,20 +1562,22 @@ function renderRecommend(){
             </div>
             <div>
               <div class="name">${esc(s.name)}${leaderTagHtml(s.code)}<span class="code tnum">${s.code}</span></div>
-              <div class="tags">${kgBadge}${modeTag}${winBadge}<span class="tag board">${is20cm(s.code) ? "20cm" : "10cm"}</span><span class="tag lbc tnum">${s.lbc}板</span></div>
+              <div class="tags">${kgBadge}${heightTag}${winBadge}</div>
               <div class="price-row"><span class="price tnum">${fmtPrice(s.price)}</span><span class="chg tnum">${fmtPct(s.zdp)}</span></div>
             </div>
           </div>
+          ${fundBar}
           <div class="stats">
             <span>封板 <b class="tnum">${fmtTime(s.fbt)}</b></span>
-            <span>封单 <b class="tnum">${fmtNum(s.fund)}</b></span>
             <span>换手 <b class="tnum">${(s.hs||0).toFixed(1)}%</b></span>
+            <span>开板 <b class="tnum">${s.zbc||0}次</b></span>
             <span>${esc(s.hybk)} <b class="tnum">${x.sc.secCount}家</b></span>
           </div>
           <div class="hit-line" style="color:${x.hq.pass ? "" : "#FAAD14"}">历史打板成功率 <b>${x.hq.hit.w2}%</b><span style="color:var(--text3)">（样本 ${x.hq.hit.n} 次 · ${esc(x.hq.hit.label)}）</span> · 隔日收盘盈利 ${x.hq.hit.w1}%</div>
           ${kgLine}
           ${riskHtml}
           <div class="reasons">${reasonHtml}</div>
+          ${boardNote}
         </div>`;
       }).join("");
 
