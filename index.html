@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN" data-theme="dark">
 <head>
 <meta charset="UTF-8">
@@ -1082,8 +1082,8 @@ function computeSentiment(){
   const zbRate = (ztN + zbN) ? zbN / (ztN + zbN) * 100 : 0;
   const maxLbc = state.zt.length ? Math.max(...state.zt.map(s => s.lbc)) : 0;
   const y = state.yest;
-  const adv = y ? y.stats.avg : null;
-  const pro = y ? y.stats.ztRate : null;
+  const adv = (y && isFinite(y.stats.avg)) ? y.stats.avg : null;
+  const pro = (y && isFinite(y.stats.ztRate)) ? y.stats.ztRate : null;
 
   let cycle, advice, temp;
   if (ztN >= 70 && zbRate < 18){ cycle = "高潮"; advice = "赚钱效应爆棚，可积极打板，但只做最强龙头，警惕次日分歧兑现"; temp = 92; }
@@ -1101,7 +1101,9 @@ function computeSentiment(){
     (adv != null ? Math.min(Math.max(adv, -6), 6) + 6 : 0) * 1.2 +
     (pro != null ? pro * 100 : 40) * 0.12
   ));
-  temp = Math.max(4, Math.min(98, Math.round((temp * 0.55 + t2 * 0.45))));
+  let tempF = Math.round(temp * 0.55 + t2 * 0.45);
+  if (!isFinite(tempF)) tempF = 45;
+  temp = Math.max(4, Math.min(98, tempF));
 
   return { ztN, zbN, zbRate, maxLbc, adv, pro, cycle, advice, temp };
 }
