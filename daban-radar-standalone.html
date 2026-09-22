@@ -138,6 +138,10 @@ select{font-family:inherit;cursor:pointer}
 .reason .bad{color:var(--up);font-weight:900}
 .reason .t{color:var(--text3)}
 .rcard .rank{position:absolute;top:12px;right:14px;font-size:11px;color:var(--text3);font-weight:700}
+/* v12 龙头小标（不占额外行，紧跟名称） */
+.leader-mini{display:inline-block;font-size:10px;font-weight:800;padding:1px 6px;border-radius:6px;margin-left:6px;vertical-align:middle;line-height:15px;white-space:nowrap}
+.leader-mini.top{background:linear-gradient(135deg,#f0b90b,#ffd24d);color:#2a1f00;border:1px solid #f0b90b}
+.leader-mini.sec{background:var(--blue-bg);color:var(--blue);border:1px solid var(--blue)}
 
 /* ============ 历史胜率徽章与空仓建议 ============ */
 .win-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:20px}
@@ -319,7 +323,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v11.4</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v12.0</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -776,11 +780,13 @@ const state = {
   sound: true, theme: "dark",
   chart: null, timerId: null, inSession: false, hisChart: null,
   lastRecCodes: null, // v6.1 推荐池对比（入选/退出弹窗）
+  mktTrend: null, mktTrendDate: null, // v12 大盘趋势（上证MA20/斜率/量能）
+  secLeader: {}, // v12 板块龙头 code -> {role:'top'|'sec', sec, lbc}
 };
 
-/* ===== v5 版本与节前因子 ===== */
-const APP_VER = "v11.4";
-const APP_VER_DATE = "2026-09-21";
+/* ===== v12 版本与大长假节前因子 ===== */
+const APP_VER = "v12.0";
+const APP_VER_DATE = "2026-09-22";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
   if (d.getDay() === 0 || d.getDay() === 6) return false;
@@ -804,15 +810,130 @@ function festivalInfo(){
   }
   return { days: cnt, holidayDate: hDate, name, triggered: cnt <= 3 };
 }
+/* ===== v12 大长假节前因子（基于2023-2026历史回测：中间有坑、两头稳）=====
+   仅对国庆/春节这类连休≥7天的大长假生效；五一/元旦/清明/端午/中秋等短假不降权。
+   d1=节前最后交易日（敢封板=真强势，节后首日冲高率最高 → 不降分、反抬达标线，仅最强龙头评估持股过节）；
+   d2-d4=退潮大坑（回测次日冲高仅54-68%、大面最高23%，d4最差 → 评分-3）；
+   d7-d8=次退潮（-1~-2）；d5/d6/d9/d10及窗口外不降。
+   大盘趋势加权：强势上涨且量能正常 → -3打折为-1.5防牛市踏空；下跌趋势严格-3并提示降仓/空仓；
+   节前冲高但量能极度萎缩（5日量能<常态80%）视为诱多，仍执行-3。 */
+const BIG_HOLIDAYS = [
+  { last:"2026-09-30", name:"国庆", resume:"2026-10-08", offDays:8 }
+  // 每年放假安排公布后在此追加：{ last:"YYYY-MM-DD", name:"春节", resume:"YYYY-MM-DD", offDays:9 }
+];
+function dateStrOf(d){
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+// 返回今天相对“下一个大长假”的倒数位次 d（今天须为交易日且落在 last 前10个交易日内），否则 null
+function preHolidayInfo(now){
+  now = now || new Date();
+  const today = dateStrOf(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+  for (const h of BIG_HOLIDAYS){
+    if (today > h.last) continue;
+    const days = [];
+    const cur = new Date(h.last+"T00:00:00");
+    let guard = 0;
+    while (days.length < 10 && guard < 45){
+      if (isTradeDay(cur)) days.push(dateStrOf(cur));
+      cur.setDate(cur.getDate()-1);
+      guard++;
+    }
+    const idx = days.indexOf(today);
+    if (idx >= 0) return { d: idx+1, name:h.name, last:h.last, resume:h.resume, offDays:h.offDays };
+    return null; // 距该大长假尚远（早于d10）
+  }
+  return null;
+}
+// 大盘趋势：上证指数日K → 收盘vs MA20、MA20斜率（牛/熊/震荡）、5日/20日成交额（缩量诱多识别）
+async function loadMarketTrend(){
+  try{
+    const u = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=1.000001&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt=1&end=20500101&lmt=40&ut=fa5fd1943c7b386f172d6893dbfba10b";
+    const j = await jfetch(u, 8000);
+    const kl = (j && j.data && j.data.klines) || [];
+    if (kl.length < 25) return null;
+    const rows = kl.map(s => { const p = s.split(","); return { d:p[0], cl:+p[2], amt:+p[6] }; });
+    const today = dateStrOf(new Date());
+    let comp = rows;
+    if (rows.length && rows[rows.length-1].d === today && isTradeTime()) comp = rows.slice(0,-1); // 盘中今日K未走完，剔除
+    const n = comp.length;
+    if (n < 25) return null;
+    const mean = a => a.reduce((x,y)=>x+y,0)/a.length;
+    const closes = comp.map(r=>r.cl), amts = comp.map(r=>r.amt);
+    const last = closes[n-1];
+    const ma20 = mean(closes.slice(n-20));
+    const ma20prev = mean(closes.slice(n-25,n-5));
+    const vol5 = mean(amts.slice(n-6,n-1));
+    const vol20 = mean(amts.slice(n-21,n-1));
+    const volRatio = vol20 ? vol5/vol20 : 1;
+    const above = last > ma20, up = ma20 > ma20prev;
+    let trend = "mid";
+    if (above && up) trend = "strong";
+    else if (!above && !up) trend = "weak";
+    return { last, ma20, ma20prev, volRatio, trend, shrink: volRatio < 0.8, inflate: volRatio > 1.15, ok:true };
+  }catch(e){ return null; }
+}
+// 节前因子综合：d位次 × 大盘趋势 × 缩量 → {adj评分加法, passDelta达标线, level, title, action}
+function preHolidayFactor(now){
+  const info = preHolidayInfo(now);
+  const mt = state.mktTrend || null;
+  const tn = mt ? (mt.trend==="strong"?"强势上涨":mt.trend==="weak"?"下跌趋势":"震荡") : "趋势读取中";
+  if (!info) return { active:false, adj:0, passDelta:0, d:0, info:null, mt, level:null, title:"", action:"", strong:false, weak:false, trendName:tn };
+  const d = info.d;
+  const strong = !!(mt && mt.trend==="strong" && !mt.shrink);
+  const weak = !!(mt && mt.trend==="weak");
+  let adj=0, passDelta=0, level="normal", title="", action="";
+  if (d === 1){
+    level = "hold";
+    passDelta = weak ? 4 : 2;
+    title = "节前最后交易日（d1）· 持股过节评估";
+    action = weak
+      ? "大盘处下跌趋势，持股过节尾部风险大，建议空仓或极低仓位过节，弱票一律清掉。"
+      : "回测：节前末日敢封板的强势票，节后首日冲高率约85%（大面仅7%）；但要承担"+info.offDays+"天假期外盘/政策风险（期间无法止损）。只留最强、缩量锁仓的总龙头评估持股，达标线已上调，跟风/弱票节前清掉。";
+  } else if (d >= 2 && d <= 4){
+    if (strong){
+      adj = -1.5; level = "warn"; passDelta = 0;
+      title = "节前退潮坑（d"+d+"）· 大盘强势，降权减半 -1.5";
+      action = "回测此窗口次日大面率10-23%（d4最差），但大盘强势上涨，为防牛市踏空将-3减半为-1.5；仍只打A档最强、快进快出；若转为极度缩量冲高（诱多）立即按-3执行。";
+    } else {
+      adj = -3; level = "danger"; passDelta = weak ? 2 : 1;
+      let why = "严格照表评分-3，少打或空仓，手里弱票冲高兑现、不隔夜。";
+      if (weak) why = "大盘处下跌趋势，严格照表-3，大幅降仓甚至空仓，不接力高位板。";
+      else if (mt && mt.shrink) why = "大盘冲高但5日量能仅常态"+Math.round(mt.volRatio*100)+"%（极度缩量），属诱多，仍执行-3，不追高。";
+      title = "节前退潮坑（d"+d+"）· 评分 -3，谨慎/空仓";
+      action = "回测：此窗口次日冲高率仅54-68%、大面率最高23%（d4全场最差）。"+why;
+    }
+  } else if (d >= 7 && d <= 8){
+    if (strong){
+      adj = 0; level = "normal";
+      title = "节前次退潮（d"+d+"）· 大盘强势，不降权";
+      action = "距长假较远的次退潮段，历史胜率略低于平时；大盘强势故不降权，按标准纪律打A档。";
+    } else if (weak){
+      adj = -2; level = "warn"; passDelta = 1;
+      title = "节前次退潮（d"+d+"）· 下跌趋势 -2";
+      action = "距长假较远但大盘走弱，小幅降权、收紧仓位，只聚焦最强题材龙头。";
+    } else {
+      adj = -1; level = "normal";
+      title = "节前次退潮（d"+d+"）· 评分 -1";
+      action = "距长假较远的次退潮段，历史胜率略低，小幅降权，聚焦最强题材龙头。";
+    }
+  } else {
+    adj = 0; level = "normal";
+    title = "节前窗口（d"+d+"）· 历史胜率正常，不降权";
+    action = "该位次（d5/d6/d9/d10）历史次日冲高率约80%、大面率低，与平时无异，按标准纪律只打A档绿勾。";
+  }
+  return { active:true, adj, passDelta, d, info, mt, level, title, action, strong, weak, trendName:tn };
+}
+
 function effectivePass(){
-  // v5：动态达标线 = 基础90 + 炸板率惩罚 + 低温惩罚 + 节前惩罚
+  // v12 动态达标线 = 基础90 + 炸板率惩罚 + 低温惩罚 + 大长假节前因子（d1抬线 / 退潮坑收紧）
   const s = computeSentiment();
   let p = HIST_PASS;
   if (s.zbRate >= 40) p += 3;
   else if (s.zbRate >= 35) p += 2;
   else if (s.zbRate >= 28) p += 1;
   if (s.temp < 40) p += 1;
-  if (festivalInfo().triggered) p += 2;
+  const ph = preHolidayFactor();
+  if (ph.active) p += ph.passDelta;
   return Math.min(p, 97);
 }
 
@@ -1022,14 +1143,16 @@ function scoreStock(s, secMap){
   reasons.push({ ok: scS >= 80, warn: scS >= 55 && scS < 80, txt: `行业「${esc(s.hybk)}」${scCount} 家涨停${scS >= 80 ? "，板块效应强" : scS >= 55 ? "，有联动" : "，板块效应弱"}` });
   reasons.push({ ok: aS >= 75, warn: aS >= 55 && aS < 75, txt: `成交 ${fmtNum(s.amount)}${aS >= 75 ? "，放量充分" : aS >= 55 ? "" : "，量能不足"}` });
 
-  // v9 节前因子精细化：缩量高位板不降（锁仓），只对放量高位板降权
-  const fe9 = festivalInfo();
-  if (fe9.triggered && (s.lbc || 1) >= 2){
-    let w = 1.0;
-    if (hs >= 20) w = s.lbc >= 4 ? 0.78 : 0.85; // 放量高位：重降
-    else if (hs >= 10) w = s.lbc >= 4 ? 0.9 : 0.95; // 中等换手：轻降
-    // 缩量（hs<10）不降权
-    for (const k in scores) scores[k] = Math.max(0, Math.round(scores[k] * w));
+  // v12 大长假节前因子：加法降权（d2-d4退潮坑-3、d7-d8次退潮-1~-2；大盘强势且不缩量减半，d1不降反抬达标线）
+  const ph = preHolidayFactor();
+  if (ph.active && ph.adj !== 0){
+    const adj = ph.adj;
+    for (const k in scores) scores[k] = Math.max(0, Math.round(scores[k] + adj));
+    const volTxt = ph.mt && ph.mt.shrink ? "缩量诱多照常-3" : ph.strong ? "大盘强势减半" : ph.weak ? "大盘下跌严格执行" : "大盘震荡";
+    reasons.push({ ok:false, bad: adj <= -2, warn: adj > -2, txt: ph.info.name+"节前倒数第"+ph.d+"个交易日（"+(ph.level==="danger"?"退潮坑":"次退潮")+"），评分"+adj+" · "+volTxt });
+  }
+  if (ph.active && ph.d === 1){
+    reasons.push({ ok:true, txt:"节前末日d1：历史强势票节后首日冲高约85%，仅最强总龙头评估持股过节（承担"+ph.info.offDays+"天假期风险）" });
   }
   return { dims, scores, reasons, sealPct, secCount: scCount, fbtMin };
 }
@@ -1113,15 +1236,22 @@ function computeSentiment(){
 /* ===== 渲染：头部 KPI ===== */
 function renderKpi(senti){
   const y = state.yest;
-  // v5 节前提示条
-  const fe5 = festivalInfo();
+  // v12 大长假节前提示条（仅 danger退潮坑/hold持股过节/warn减半 时显示；常态不显示，完整规则在市场情绪框）
+  const phBar = preHolidayFactor();
   const oldBar = document.getElementById("festBar");
   if (oldBar) oldBar.remove();
-  if (fe5.triggered){
+  if (phBar.active && (phBar.level === "danger" || phBar.level === "hold" || phBar.level === "warn")){
     const bar = document.createElement("div");
     bar.id = "festBar";
-    bar.style.cssText = "margin:8px 14px 0;padding:8px 12px;border-radius:10px;font-size:12.5px;line-height:1.7;background:rgba(250,173,20,0.12);border:1px solid rgba(250,173,20,0.45);color:var(--text)";
-    bar.innerHTML = '⚠️ <b>距' + fe5.name + '休市（' + fe5.holidayDate + '）仅剩 ' + fe5.days + ' 个交易日</b> · 节前高位连板兑现风险高：评分已降权（4板以上×0.82、2-3板×0.9），达标线已上调，建议轻仓快打、不留高位隔夜。';
+    const cfg = phBar.level === "danger"
+      ? { bg:"rgba(242,54,69,0.12)", bd:"rgba(242,54,69,0.5)", ic:"🚨" }
+      : phBar.level === "hold"
+      ? { bg:"rgba(240,185,11,0.12)", bd:"rgba(240,185,11,0.5)", ic:"🏮" }
+      : { bg:"rgba(250,173,20,0.12)", bd:"rgba(250,173,20,0.45)", ic:"⚠️" };
+    bar.style.cssText = "margin:8px 14px 0;padding:8px 12px;border-radius:10px;font-size:12.5px;line-height:1.7;background:"+cfg.bg+";border:1px solid "+cfg.bd+";color:var(--text)";
+    const scoreTxt = phBar.adj !== 0 ? ("评分"+phBar.adj) : "评分不降";
+    const passTxt = phBar.passDelta ? (" · 达标线+"+phBar.passDelta) : "";
+    bar.innerHTML = cfg.ic+" <b>"+phBar.title+"（"+scoreTxt+passTxt+"）</b> · "+phBar.action;
     const kpi = document.getElementById("kpiBar");
     if (kpi) kpi.parentNode.insertBefore(bar, kpi);
   }
@@ -1150,6 +1280,15 @@ function renderKpi(senti){
   }
 }
 
+/* ===== v12 龙头小标（总龙金 / 板块龙蓝，inline 不占行）===== */
+function leaderTagHtml(code){
+  const L = (state.secLeader || {})[code];
+  if (!L) return "";
+  return L.role === "top"
+    ? '<span class="leader-mini top">👑总龙</span>'
+    : '<span class="leader-mini sec">龙·' + esc(L.sec || "") + '</span>';
+}
+
 /* ===== 渲染：推荐卡 ===== */
 function cardHtml(s, rank){
   const sc = scoreStock(s, sectorCountMap(state.zt));
@@ -1160,9 +1299,14 @@ function cardHtml(s, rank){
     ? (s.isTop ? `<span class="tag m-longtou">总龙头</span>` : `<span class="tag m-lianban">${s.lbc}连板</span>`)
     : `<span class="tag m-shouban">首板</span>`;
   const tagCls = s.lbc >= 4 ? "lb4" : s.lbc >= 3 ? "lb3" : s.lbc === 2 ? "lb2" : "lb1";
-  const fesTag = festivalInfo().triggered && (s.lbc || 1) >= 2
-    ? '<span class="tag" style="background:rgba(234,102,104,0.14);color:#EA6668;border:1px solid rgba(234,102,104,0.5)">⚠节前兑现风险</span>'
-    : "";
+  const phc = preHolidayFactor();
+  let fesTag = "";
+  if (phc.active && phc.adj !== 0){
+    const col = phc.adj <= -2 ? "#EA6668" : "#FAAD14";
+    fesTag = '<span class="tag" style="background:'+col+'22;color:'+col+';border:1px solid '+col+'88">'+(phc.level === "danger" ? "🚨退潮坑 " : "⚠节前 ")+phc.adj+'</span>';
+  } else if (phc.active && phc.d === 1){
+    fesTag = '<span class="tag" style="background:rgba(240,185,11,0.14);color:#f0b90b;border:1px solid rgba(240,185,11,0.5)">🏮持股过节评估</span>';
+  }
   const reasonHtml = sc.reasons.map(r =>
     `<div class="reason"><span class="${r.ok ? "ok" : r.bad ? "bad" : r.warn ? "warn" : "t"}">${r.ok ? "✓" : r.bad ? "✕" : r.warn ? "!" : "·"}</span><span class="t">${r.txt}</span></div>`
   ).join("");
@@ -1174,7 +1318,7 @@ function cardHtml(s, rank){
         <span><span class="num tnum">${v}</span><span class="lab">${gradeOf(v)}</span></span>
       </div>
       <div>
-        <div class="name">${esc(s.name)}<span class="code tnum">${s.code}</span></div>
+        <div class="name">${esc(s.name)}${leaderTagHtml(s.code)}<span class="code tnum">${s.code}</span></div>
         <div class="tags">${modeTag}${fesTag}<span class="tag board">${is20cm(s.code) ? "20cm" : "10cm"}</span><span class="tag lbc tnum">封单 ${fmtNum(s.fund)}</span></div>
         <div class="price-row"><span class="price tnum">${fmtPrice(s.price)}</span><span class="chg tnum">${fmtPct(s.zdp)}</span></div>
       </div>
@@ -1219,6 +1363,31 @@ function renderRecommend(){
   const senti = computeSentiment();
   const secMap = sectorCountMap(state.zt);
 
+  // v12 大长假节前因子 + 大盘趋势加权（情绪框全宽说明区）
+  const ph = preHolidayFactor();
+  const mt = state.mktTrend;
+  const trendCls = mt ? (mt.trend === "strong" ? "up-c" : mt.trend === "weak" ? "down-c" : "") : "";
+  const trendTxt = mt ? ({ strong:"强势上涨（指数在MA20上方·均线多头）", weak:"下跌趋势（指数在MA20下方·均线下行）", mid:"震荡（趋势不明）" })[mt.trend] : "大盘趋势读取中…";
+  const volTxt = mt ? ("量能(5日/20日) " + Math.round(mt.volRatio*100) + "%" + (mt.shrink ? " · 极度缩量警惕诱多" : mt.inflate ? " · 明显放量" : " · 量能正常")) : "";
+  const trendLine = "大盘加权：<b class='" + trendCls + "'>" + trendTxt + "</b>" + (mt ? (" · 上证 " + mt.last.toFixed(0) + " / MA20 " + mt.ma20.toFixed(0) + " · " + volTxt) : "");
+  let holidayBox = "";
+  if (ph.active){
+    const c = ph.level === "danger" ? { bg:"rgba(242,54,69,.10)", bd:"rgba(242,54,69,.5)", col:"#ff6b72", ic:"🚨" }
+      : ph.level === "hold" ? { bg:"rgba(240,185,11,.10)", bd:"rgba(240,185,11,.5)", col:"#f0b90b", ic:"🏮" }
+      : ph.level === "warn" ? { bg:"rgba(250,173,20,.10)", bd:"rgba(250,173,20,.45)", col:"#FAAD14", ic:"⚠️" }
+      : { bg:"var(--panel3)", bd:"var(--line)", col:"var(--text2)", ic:"🗓️" };
+    const scoreTxt = ph.adj !== 0 ? ("评分 " + ph.adj) : "评分不降";
+    const passTxt = ph.passDelta ? (" · 达标线 +" + ph.passDelta) : "";
+    holidayBox = '<div style="grid-column:1/-1;margin-top:4px;padding:10px 14px;border-radius:12px;background:'+c.bg+';border:1px solid '+c.bd+';font-size:12px;line-height:1.75">'
+      + '<div style="font-weight:900;color:'+c.col+'">'+c.ic+' '+ph.title+'（'+scoreTxt+passTxt+'）</div>'
+      + '<div style="color:var(--text2);margin-top:2px">'+ph.action+'</div>'
+      + '<div style="color:var(--text3);margin-top:3px;font-size:11.5px">'+trendLine+'　|　规则：d2-d4退潮坑-3（大盘强势且不缩量减半为-1.5），d7-d8 -1~-2，d1末日不降反抬线·仅最强龙头评估持股；五一/元旦/三天短假不降权</div>'
+      + '</div>';
+  } else {
+    holidayBox = '<div style="grid-column:1/-1;margin-top:4px;padding:9px 14px;border-radius:12px;background:var(--panel3);border:1px solid var(--line);font-size:11.5px;line-height:1.7;color:var(--text3)">'
+      + '🗓️ <b style="color:var(--text2)">大长假降权</b>：当前不在国庆/春节等连休≥7天大长假的前10个交易日窗口（五一、元旦、清明、端午、中秋等短假历史胜率与平时无异，不降权）。　' + trendLine + '</div>';
+  }
+
   // 情绪综述卡
   const y = state.yest;
   $("#sentiCard").innerHTML = `
@@ -1228,7 +1397,7 @@ function renderRecommend(){
         <span style="font-size:12px;color:var(--text3);font-weight:400">涨停 ${senti.ztN} · 炸板 ${senti.zbN} · 炸板率 ${senti.zbRate.toFixed(0)}% · 最高 ${senti.maxLbc} 板</span>
       </h2>
       <div class="advice"><b>操作建议：</b>${senti.advice}</div>
-      <div class="advice" style="font-size:12px;color:var(--text3)">${y ? `昨日涨停 ${y.stats.total} 只，今日平均 ${fmtPct(y.stats.avg)}，红盘率 ${(y.stats.redRate*100).toFixed(0)}%，晋级 ${y.stats.upLimit} 只（${(y.stats.ztRate*100).toFixed(0)}%）。` : "盘中暂未加载昨日数据（收盘后自动生成复盘）。"}</div>
+      <div class="advice" style="font-size:12px;color:var(--text3)">${y ? `昨日涨停 ${y.stats.total} 只，今日平均 ${isFinite(y.stats.avg) ? fmtPct(y.stats.avg) : "--"}，红盘率 ${isFinite(y.stats.redRate) ? (y.stats.redRate*100).toFixed(0)+"%" : "--"}，晋级 ${y.stats.upLimit} 只（${isFinite(y.stats.ztRate) ? (y.stats.ztRate*100).toFixed(0)+"%" : "--"}）。` : "盘中暂未加载昨日数据（收盘后自动生成复盘）。"}</div>
     </div>
     <div class="senti-right">
       <div class="it"><div class="v up-c tnum">${senti.ztN}</div><div class="k">涨停家数</div></div>
@@ -1237,7 +1406,8 @@ function renderRecommend(){
       <div class="it"><div class="v ${senti.adv != null && senti.adv >= 0 ? "up-c" : "down-c"} tnum">${senti.adv != null ? fmtPct(senti.adv) : "--"}</div><div class="k">昨日溢价</div></div>
       <div class="it"><div class="v ${senti.pro != null && senti.pro >= 0.2 ? "up-c" : "down-c"} tnum">${senti.pro != null ? (senti.pro*100).toFixed(0)+"%" : "--"}</div><div class="k">晋级率</div></div>
       <div class="it"><div class="v blue tnum">${senti.zbN}</div><div class="k">炸板数</div></div>
-    </div>`;
+    </div>
+    ${holidayBox}`;
 
   // v6：达标（≥动态线）优先 + 候选（≥90%且未达动态线）也进推荐，达标优先、灵活选择
   const ztCount = state.zt.length;
@@ -1359,7 +1529,7 @@ function renderRecommend(){
               <span><span class="num tnum">${v}</span><span class="lab">${gradeOf(v)}</span></span>
             </div>
             <div>
-              <div class="name">${esc(s.name)}<span class="code tnum">${s.code}</span></div>
+              <div class="name">${esc(s.name)}${leaderTagHtml(s.code)}<span class="code tnum">${s.code}</span></div>
               <div class="tags">${kgBadge}${modeTag}${winBadge}<span class="tag board">${is20cm(s.code) ? "20cm" : "10cm"}</span><span class="tag lbc tnum">${s.lbc}板</span></div>
               <div class="price-row"><span class="price tnum">${fmtPrice(s.price)}</span><span class="chg tnum">${fmtPct(s.zdp)}</span></div>
             </div>
@@ -2106,6 +2276,10 @@ async function refresh(){
   const jobs = [];
   jobs.push(loadZTPool(date).then(p => { state.zt = p; }).catch(() => {}));
   jobs.push(loadZBPool(date).then(p => { state.zb = p; }).catch(() => {}));
+  // v12 大盘趋势（上证MA20/斜率/量能），每个交易日只拉一次
+  if (state.mktTrendDate !== date){
+    jobs.push(loadMarketTrend().then(m => { if (m){ state.mktTrend = m; state.mktTrendDate = date; } }).catch(() => {}));
+  }
   if (inSession || !state.loadOk){
     jobs.push(loadIndices().then(d => { state.indices = d; }).catch(() => {}));
   }
@@ -2122,6 +2296,21 @@ async function refresh(){
   const maxLbc = state.zt.length ? Math.max(...state.zt.map(s => s.lbc)) : 0;
   const topSet = new Set(state.zt.filter(s => s.lbc === maxLbc).map(s => s.code));
   state.zt.forEach(s => { s.isTop = topSet.has(s.code) && s.lbc >= 2; });
+
+  // v12 板块龙头：全市场最高板=总龙头👑；每个行业最高板（并列取首封最早）=板块龙头；单票板块不标
+  state.secLeader = {};
+  const secGroups = {};
+  state.zt.forEach(s => { (secGroups[s.hybk] = secGroups[s.hybk] || []).push(s); });
+  state.zt.forEach(s => { if (s.isTop) state.secLeader[s.code] = { role:"top" }; });
+  const fbtKey = s => s.fbt ? hhmm2min(s.fbt) : 9999;
+  Object.keys(secGroups).forEach(k => {
+    const g = secGroups[k];
+    if (g.length < 2) return;                 // 单票板块不标龙头
+    const maxLb = Math.max(...g.map(x => x.lbc));
+    if (maxLb < 2) return;                    // 仅首板不标板块龙头
+    const lead = g.filter(x => x.lbc === maxLb).sort((a,b)=> fbtKey(a)-fbtKey(b))[0];
+    if (!state.secLeader[lead.code]) state.secLeader[lead.code] = { role:"sec", sec:lead.hybk, lbc:maxLb };
+  });
 
   // 提醒（仅盘中）
   if (inSession && state.loadOk) checkAlerts(state.zt);
