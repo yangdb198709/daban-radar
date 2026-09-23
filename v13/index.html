@@ -225,10 +225,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 
 /* ============ 情绪综述卡 ============ */
 .senti-card{display:flex;flex-direction:column;gap:14px;padding:20px 22px}
-.senti-top{display:grid;grid-template-columns:auto auto auto;gap:22px;align-items:center;justify-content:flex-start}
-.senti-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
-.senti-b-main,.senti-b-side{min-width:0;display:flex}
-.senti-b-main>div,.senti-b-side>div{flex:1;min-width:0}
+.senti-top{display:grid;grid-template-columns:auto auto auto 1fr;gap:14px;align-items:start;justify-content:flex-start}
+.senti-ph{min-width:0;padding:8px 11px;border-radius:10px;font-size:11px;line-height:1.55;align-self:start}
 .cycle-badge{width:110px;height:110px;border-radius:50%;border:3px solid var(--gold);display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 6px var(--gold-bg)}
 .cycle-badge .cv{font-size:30px;font-weight:900;color:var(--gold)}
 .cycle-badge .cl{font-size:12px;font-weight:700;color:var(--text2);margin-top:2px}
@@ -343,7 +341,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v13.2</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v13.3</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -805,7 +803,7 @@ const state = {
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v13.2";
+const APP_VER = "v13.3";
 const APP_VER_DATE = "2026-09-23";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -1493,14 +1491,16 @@ function renderRecommend(){
       : { bg:"var(--panel3)", bd:"var(--line)", col:"var(--text2)", ic:"🗓️" };
     const scoreTxt = ph.adj !== 0 ? ("评分 " + ph.adj) : "评分不降";
     const passTxt = ph.passDelta ? (" · 达标线 +" + ph.passDelta) : "";
-    holidayBox = '<div style="margin:0;padding:10px 14px;border-radius:12px;background:'+c.bg+';border:1px solid '+c.bd+';font-size:12px;line-height:1.75">'
-      + '<div style="font-weight:900;color:'+c.col+'">'+c.ic+' '+ph.title+'（'+scoreTxt+passTxt+'）</div>'
-      + '<div style="color:var(--text2);margin-top:2px">'+ph.action+'</div>'
-      + '<div style="color:var(--text3);margin-top:3px;font-size:11.5px">'+trendLine+'　|　规则（T日打板/T+1卖）：d5-d6正常打A档；d4/d7收紧-2只打最强快进快出；d2-d3核心防坑-3不开新仓；d1末日-3不开新仓、逢高出不扛假；短假不降权</div>'
+    holidayBox = '<div style="height:100%;background:'+c.bg+';border:1px solid '+c.bd+'">'
+      + '<div style="font-weight:700;color:'+c.col+';font-size:11.5px">'+c.ic+' '+ph.title+'（'+scoreTxt+passTxt+'）</div>'
+      + '<div style="color:var(--text3);margin-top:2px;font-size:10.5px">'+ph.action+'</div>'
+      + '<div style="color:var(--text3);margin-top:2px;font-size:10px;opacity:.85">'+trendLine+'</div>'
       + '</div>';
   } else {
-    holidayBox = '<div style="margin:0;padding:9px 14px;border-radius:12px;background:var(--panel3);border:1px solid var(--line);font-size:11.5px;line-height:1.7;color:var(--text3)">'
-      + '🗓️ <b style="color:var(--text2)">大长假降权</b>：当前不在国庆/春节等连休≥7天大长假的前10个交易日窗口（五一、元旦、清明、端午、中秋等短假历史胜率与平时无异，不降权）。　' + trendLine + '</div>';
+    holidayBox = '<div style="height:100%;background:var(--panel3);border:1px solid var(--line);color:var(--text3)">'
+      + '<div style="font-weight:700;color:var(--text2);font-size:11.5px">🗓️ 非大长假窗口</div>'
+      + '<div style="margin-top:2px;font-size:10.5px">'+trendLine+'</div>'
+      + '</div>';
   }
 
   // 情绪综述卡
@@ -1523,10 +1523,7 @@ function renderRecommend(){
       <div class="it"><div class="v ${senti.pro != null && senti.pro >= 0.2 ? "up-c" : "down-c"} tnum">${senti.pro != null ? (senti.pro*100).toFixed(0)+"%" : "--"}</div><div class="k">晋级率</div></div>
       <div class="it"><div class="v blue tnum">${senti.zbN}</div><div class="k">炸板数</div></div>
     </div>
-    </div>
-    <div class="senti-bottom">
-      <div class="senti-b-main">${mainLineHtml()}</div>
-      <div class="senti-b-side">${holidayBox}</div>
+    <div class="senti-ph">${holidayBox}</div>
     </div>`;
 
   // v6：达标（≥动态线）优先 + 候选（≥90%且未达动态线）也进推荐，达标优先、灵活选择
