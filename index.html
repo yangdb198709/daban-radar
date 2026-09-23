@@ -797,7 +797,7 @@ const state = {
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v13.1";
+const APP_VER = "v13.2";
 const APP_VER_DATE = "2026-09-23";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -1237,6 +1237,103 @@ function computeSentiment(){
   return { ztN, zbN, zbRate, maxLbc, adv, pro, cycle, advice, temp };
 }
 
+/* ===== v13.2 最强主线题材聚类（行业 + 名称题材系） ===== */
+const ML_NAME_STOP = ["股份","集团","控股","有限","公司","实业","发展","国际","企业","科技","投资","资产","资本","管理","置业","建设","建工","工业","装备","新材","材料","智能","高科","精密","光电","微电","机电","机械","电气","系统","集成","电工","电子","信息","网络","通信","数字","能源","新能","环保","资源","高新","技术","产业","行业","新材料"];
+function sectorGroups(rows){
+  const g={};
+  rows.forEach(function(s){ const k=s.hybk||"其他"; if(!g[k]) g[k]={name:k,members:[]}; g[k].members.push(s); });
+  const arr=Object.keys(g).map(function(k){
+    const mem=g[k].members;
+    let maxLbc=0,lead=mem[0],sumFund=0,sumAmount=0,zbcN=0; const tierMap={};
+    mem.forEach(function(s){
+      if(s.lbc>maxLbc || (s.lbc===maxLbc && (s.fund||0)>(lead.fund||0))){ maxLbc=s.lbc; lead=s; }
+      sumFund+=(s.fund||0); sumAmount+=(s.amount||0); if((s.zbc||0)>0)zbcN++;
+      tierMap[s.lbc]=(tierMap[s.lbc]||0)+1;
+    });
+    const frc=sumAmount?sumFund/sumAmount:0;
+    const zbRate=mem.length?zbcN/mem.length*100:0;
+    const tierKinds=Object.keys(tierMap).length;
+    const score=mem.length*10+Math.min(maxLbc,6)*5+tierKinds*3+Math.min(Math.max(frc,0),3)*6-Math.min(zbRate,60)*0.15;
+    return {name:k,cnt:mem.length,maxLbc:maxLbc,lead:lead,members:mem,tierMap:tierMap,frc:frc,zbRate:zbRate,tierKinds:tierKinds,score:score};
+  });
+  arr.sort(function(a,b){return b.score-a.score;});
+  return arr;
+}
+function nameThemeGroups(rows){
+  const stop={}; ML_NAME_STOP.forEach(function(w){stop[w]=1;});
+  const m={};
+  rows.forEach(function(s){
+    const nm=s.name||""; const seen={};
+    for(let i=0;i<nm.length-1;i++){
+      const w=nm.slice(i,i+2);
+      if(/[A-Za-z0-9]/.test(w[0])||/[A-Za-z0-9]/.test(w[1])) continue;
+      if(stop[w]||seen[w]) continue; seen[w]=1;
+      if(!m[w])m[w]={cnt:0,codes:{}};
+      if(!m[w].codes[s.code]){ m[w].codes[s.code]=1; m[w].cnt++; }
+    }
+  });
+  const arr=[];
+  Object.keys(m).forEach(function(w){ if(m[w].cnt>=3) arr.push({word:w,cnt:m[w].cnt,codes:Object.keys(m[w].codes)}); });
+  arr.sort(function(a,b){return b.cnt-a.cnt;});
+  return arr.slice(0,4);
+}
+function mlsDays(kind,key){
+  let days=1;
+  try{
+    const db=loadStudy();
+    const past=db.snaps.filter(function(s){return s.date<studyDateStr()&&s.mls;}).sort(function(a,b){return a.date<b.date?1:-1;});
+    for(let i=0;i<past.length;i++){
+      const mls=past[i].mls; let hit=false;
+      if(kind==="sec"&&mls.sec){ hit=mls.sec.some(function(x){return x.name===key;}); }
+      if(kind==="nt"&&mls.nt){ hit=mls.nt.some(function(x){return x.word===key;}); }
+      if(hit)days++; else break;
+    }
+  }catch(e){}
+  return days;
+}
+function tierStr(tierMap){ return Object.keys(tierMap).map(function(k){ return (k>1?k+"板":"首板")+tierMap[k]; }).join("·"); }
+function mlsDigest(){
+  const sec=sectorGroups(state.zt).filter(function(a){return a.cnt>=3;}).slice(0,3).map(function(a){return {name:a.name,cnt:a.cnt,maxLbc:a.maxLbc,lead:a.lead.name};});
+  const nt=nameThemeGroups(state.zt).map(function(n){return {word:n.word,cnt:n.cnt};});
+  return {sec:sec,nt:nt};
+}
+function mainLineHtml(){
+  const secAll=sectorGroups(state.zt);
+  const sec=secAll.filter(function(a){return a.cnt>=3;}).slice(0,3);
+  const nt=nameThemeGroups(state.zt);
+  const dayLbl=function(d){ return d<=1?"首日":("连续"+d+"天"); };
+  const aNamesOf=function(mem){ return mem.filter(function(s){try{return strikeGrade(s).g==="A";}catch(e){return false;}}).map(function(s){return esc(s.name);}); };
+  let h='<div style="margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(127,127,127,0.05)">';
+  h+='<div style="font-size:13.5px;font-weight:700;margin-bottom:8px">🧭 最强主线题材<span style="font-size:11px;color:var(--text3);font-weight:400">　板块成线门槛：同题材≥3只涨停</span></div>';
+  if(!sec.length && !nt.length){
+    const top=secAll.slice(0,3).map(function(a){return esc(a.name)+a.cnt+"只";}).join("、");
+    h+='<div style="font-size:12.5px;line-height:1.8;color:var(--text2)"><b style="color:var(--up)">⚠ 无明显主线（混沌期）</b>：涨停分散、无板块成线（最多：'+(top||"--")+'）。<b>今日降低出手或空仓</b>，不接力零散个股。</div>';
+  }else{
+    nt.forEach(function(n){
+      const members=state.zt.filter(function(s){return n.codes.indexOf(s.code)>=0;});
+      const secs=[...new Set(members.map(function(s){return s.hybk;}))].slice(0,3).join("/");
+      const an=aNamesOf(members);
+      h+='<div style="font-size:12.5px;line-height:1.9;padding:5px 8px;margin:4px 0;border-left:3px solid var(--gold);background:rgba(212,175,55,0.08)">';
+      h+='<b style="color:var(--gold)">★ 题材系·'+esc(n.word)+'系</b>　'+n.cnt+'只　'+dayLbl(mlsDays("nt",n.word))+'　<span style="color:var(--text3)">跨行业：'+esc(secs)+'</span>';
+      h+='<br><span style="color:var(--text3)">成员：</span>'+members.map(function(s){return esc(s.name)+(s.lbc>1?s.lbc+"板":"首板");}).join("、");
+      h+='<br><span style="color:var(--text3)">板块内 A 档：</span>'+(an.length?('<b style="color:var(--down)">'+an.join("、")+'</b>'):"<span style='color:var(--text3)'>无干净A档（一字排不进/烂板）</span>");
+      h+='</div>';
+    });
+    sec.forEach(function(a){
+      const q=a.frc>=1&&a.zbRate<=20?"封板强":(a.frc>=0.5?"封板中":"封板弱/虚火");
+      const an=aNamesOf(a.members);
+      h+='<div style="font-size:12.5px;line-height:1.9;padding:5px 8px;margin:4px 0;border-left:3px solid var(--blue);background:rgba(90,140,220,0.07)">';
+      h+='<b style="color:var(--blue)">【'+esc(a.name)+'】行业</b>　'+a.cnt+'只涨停　最高<b style="color:var(--gold)">'+a.maxLbc+'板</b>（龙头 '+esc(a.lead.name)+'）　'+dayLbl(mlsDays("sec",a.name));
+      h+='<br><span style="color:var(--text3)">梯队：</span>'+tierStr(a.tierMap)+'　<span style="color:var(--text3)">'+q+'（炸板率'+a.zbRate.toFixed(0)+'%·封成比'+a.frc.toFixed(2)+'）</span>';
+      h+='<br><span style="color:var(--text3)">板块内 A 档：</span>'+(an.length?('<b style="color:var(--down)">'+an.join("、")+'</b>'):"<span style='color:var(--text3)'>无干净A档</span>");
+      h+='</div>';
+    });
+  }
+  h+='<div style="font-size:11.5px;color:var(--text3);margin-top:8px;line-height:1.7">决策：<b style="color:var(--down)">只在主线内挑 A 档绿勾</b>（开板回封排队）；主线外 A 档降一级、仓位更轻；B 档一律不碰；无主线且无 A 档 → 空仓。</div>';
+  h+='</div>';
+  return h;
+}
+
 /* ===== 渲染：头部 KPI ===== */
 function renderKpi(senti){
   const y = state.yest;
@@ -1417,7 +1514,7 @@ function renderRecommend(){
       <div class="it"><div class="v ${senti.pro != null && senti.pro >= 0.2 ? "up-c" : "down-c"} tnum">${senti.pro != null ? (senti.pro*100).toFixed(0)+"%" : "--"}</div><div class="k">晋级率</div></div>
       <div class="it"><div class="v blue tnum">${senti.zbN}</div><div class="k">炸板数</div></div>
     </div>
-    ${holidayBox}`;
+    ${mainLineHtml()}${holidayBox}`;
 
   // v6：达标（≥动态线）优先 + 候选（≥90%且未达动态线）也进推荐，达标优先、灵活选择
   const ztCount = state.zt.length;
@@ -2196,8 +2293,11 @@ function autoSnap(){
     const hm = now.getHours()*60 + now.getMinutes();
     if (hm < 15*60) return; // 未收盘不记
     const today = studyDateStr();
+    const mls = mlsDigest();
     const db0 = loadStudy();
-    const ex = db0.snaps.find(x=>x.date===today);
+    let ex = db0.snaps.find(x=>x.date===today);
+    if(!ex){ upsertSnap(today, {mls:mls}); }
+    else if(!ex.mls){ upsertSnap(today, {mls:mls}); }
     if (ex && ex.items && ex.items.length) return; // 今日推荐池已记
     if (!state.recPool || !state.recPool.length) return;
     const items = state.recPool.map(function(x){ return {code:x.s.code, name:x.s.name, score:x.sc.scores[x.mode], grade:(x.kg?x.kg.g:null)}; });
