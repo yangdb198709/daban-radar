@@ -723,6 +723,7 @@ const API = {
   stock:   "https://push2delay.eastmoney.com/api/qt/stock/get",
   ulist:   "https://push2delay.eastmoney.com/api/qt/ulist.np/get",
   trends:  "https://push2his.eastmoney.com/api/qt/stock/trends2/get",
+  boardType: "https://datacenter.eastmoney.com/securities/api/data/v1/get",
 };
 const FS_STOCKS = "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23";
 const FS_SECTORS = "m:90+t:2+f:!50";
@@ -800,10 +801,11 @@ const state = {
   lastRecCodes: null, // v6.1 推荐池对比（入选/退出弹窗）
   mktTrend: null, mktTrendDate: null, // v12 大盘趋势（上证MA20/斜率/量能）
   secLeader: {}, // v12 板块龙头 code -> {role:'top'|'sec', sec, lbc}
+  boardMap: {}, // v15 板块归属 code -> {bigInd:{code,name}, concepts:[{code,name}]}
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v13.2";
+const APP_VER = "v15.0";
 const APP_VER_DATE = "2026-09-23";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -992,10 +994,10 @@ async function loadYesterday(){
     diff.forEach(d => byCode[d.f12] = d);
     batch.forEach(s => {
       const d = byCode[s.code];
-      rows.push({ ...s, todayChg: d ? d.f3 : null, todayPrice: d ? d.f2 : null, todayHs: d ? d.f8 : null, todayAmount: d ? d.f6 : null });
+      rows.push({ ...s, todayChg: (d && isFinite(d.f3)) ? d.f3 : null, todayPrice: d ? d.f2 : null, todayHs: d ? d.f8 : null, todayAmount: (d && isFinite(d.f6)) ? d.f6 : null });
     });
   }
-  const valid = rows.filter(r => r.todayChg != null);
+  const valid = rows.filter(r => isFinite(r.todayChg));
   const avg = valid.length ? valid.reduce((a,r) => a + r.todayChg, 0) / valid.length : null;
   const red = valid.filter(r => r.todayChg > 0).length;
   const upLimit = valid.filter(r => r.todayChg >= ztThreshold(r)).length;
@@ -1283,59 +1285,164 @@ function nameThemeGroups(rows){
   arr.sort(function(a,b){return b.cnt-a.cnt;});
   return arr.slice(0,4);
 }
-function mlsDays(kind,key){
+/* ===== v15 板块归属：大行业链 + 概念题材链 双维度归并 ===== */
+// 噪声板块（指数/互联互通/风格财报/昨日表现/地域统计），按名称关键词剔除
+const ML_NOISE_KW = ["普尔","罗素","MSCI","股通","融资融券","HS300","深成","深证","央视","AH股","超级品牌","盘股","盘成长","盘价值","市净率","破净","题材股","风格","中报","季报","昨日","新高","多板","热股","三角","特区"];
+function isNoiseBoard(name){
+  for(let i=0;i<ML_NOISE_KW.length;i++){ if(name.indexOf(ML_NOISE_KW[i])>=0) return true; }
+  return false;
+}
+function secucodeOf(s){
+  const m=(s.m!=null)?s.m:(s.code.startsWith("6")?1:0);
+  return s.code+(m===1?".SH":".SZ");
+}
+// 解析单只股票的全部板块行 -> {bigInd,concepts}
+function parseBoardRows(rows){
+  let bigInd=null;const concepts=[];const seen={};
+  rows.forEach(function(r){
+    const code=r.NEW_BOARD_CODE,name=r.BOARD_NAME,bt=r.BOARD_TYPE;
+    if(!code||!name)return;
+    if(bt==="板块")return;                         // 地域
+    if(bt==="行业"){
+      const num=parseInt(code.slice(2),10);
+      if(num>=1200&&num<1300&&!bigInd)bigInd={code:code,name:name}; // 大行业
+      return;                                      // 细分行业不做题材
+    }
+    if(isNoiseBoard(name))return;                  // 指数/风格/财报/昨日
+    if(seen[code])return;seen[code]=1;
+    concepts.push({code:code,name:name});
+  });
+  return {bigInd:bigInd,concepts:concepts};
+}
+// 批量采集板块归属（增量，只取 boardMap 缺失的 code）
+async function loadBoardTypes(zt){
+  try{
+    const todo=zt.filter(function(s){return !state.boardMap[s.code];});
+    for(let i=0;i<todo.length;i+=15){
+      const batch=todo.slice(i,i+15);
+      const list=batch.map(secucodeOf).map(function(c){return '"'+c+'"';}).join(",");
+      const filt="(SECUCODE in ("+list+"))";
+      const u=API.boardType+"?reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=ALL&filter="+encodeURIComponent(filt)+"&pageNumber=1&pageSize=500";
+      const j=await jfetch(u,12000);
+      const rows=(j&&j.result&&j.result.data)||[];
+      const byCode={};
+      rows.forEach(function(r){const c=r.SECURITY_CODE;(byCode[c]=byCode[c]||[]).push(r);});
+      batch.forEach(function(s){ if(byCode[s.code]) state.boardMap[s.code]=parseBoardRows(byCode[s.code]); });
+    }
+  }catch(e){ /* 失败回退旧 hybk 逻辑 */ }
+}
+// 持续性：该线（题材/行业）在过去 snap 中连续出现的天数
+function mlsDays(dim,code){
   let days=1;
   try{
     const db=loadStudy();
     const past=db.snaps.filter(function(s){return s.date<studyDateStr()&&s.mls;}).sort(function(a,b){return a.date<b.date?1:-1;});
+    const key=dim==="theme"?"themes":"inds";
     for(let i=0;i<past.length;i++){
-      const mls=past[i].mls; let hit=false;
-      if(kind==="sec"&&mls.sec){ hit=mls.sec.some(function(x){return x.name===key;}); }
-      if(kind==="nt"&&mls.nt){ hit=mls.nt.some(function(x){return x.word===key;}); }
-      if(hit)days++; else break;
+      const arr=past[i].mls[key];
+      let hit=false;
+      if(arr)hit=arr.some(function(x){return x.code===code;});
+      if(hit)days++;else break;
     }
   }catch(e){}
   return days;
 }
+// 统一构建线对象 + 主线评分（打板口径）
+function lineFromMembers(dim,code,name,members){
+  let maxLbc=0,lead=members[0],sumFund=0,sumAmount=0,zbcN=0;const tierMap={};
+  members.forEach(function(s){
+    if(s.lbc>maxLbc||(s.lbc===maxLbc&&(s.fund||0)>(lead.fund||0))){maxLbc=s.lbc;lead=s;}
+    sumFund+=(s.fund||0);sumAmount+=(s.amount||0);if((s.zbc||0)>0)zbcN++;
+    tierMap[s.lbc]=(tierMap[s.lbc]||0)+1;
+  });
+  const cnt=members.length;
+  const frc=sumAmount?sumFund/sumAmount:0;
+  const zbRate=cnt?zbcN/cnt*100:0;
+  const tierKinds=Object.keys(tierMap).length;
+  let continuous=true;for(let k=1;k<=maxLbc;k++){if(!tierMap[k]){continuous=false;break;}}
+  const persist=mlsDays(dim,code);
+  let score=0;
+  score+=Math.min(cnt,10)*3;                     // 广度 0-30
+  score+=Math.min(maxLbc,6)*4;                   // 龙头高度 0-24
+  score+=Math.min(tierKinds,6)*4;                // 梯队层数 0-24
+  if(continuous&&maxLbc>=2)score+=6;             // 成梯不断层 0-6
+  score+=frc>=1?12:(frc>=0.5?8:(frc>=0.3?5:0));  // 资金进攻 0-12
+  score+=Math.min(persist,5)*2;                  // 持续性 0-10
+  score-=Math.min(zbRate,50)*0.3;                // 炸板率 0~-15
+  score=Math.max(0,score);
+  return {dim:dim,code:code,name:name,cnt:cnt,maxLbc:maxLbc,lead:lead,members:members,
+    tierMap:tierMap,frc:frc,zbRate:zbRate,tierKinds:tierKinds,continuous:continuous,persist:persist,score:score};
+}
+// 题材链（按概念跨行业归并）
+function themeLines(){
+  const g={};
+  state.zt.forEach(function(s){
+    const b=state.boardMap[s.code];if(!b)return;
+    b.concepts.forEach(function(c){ if(!g[c.code])g[c.code]={name:c.name,members:[]}; g[c.code].members.push(s); });
+  });
+  return Object.keys(g).map(function(code){return lineFromMembers("theme",code,g[code].name,g[code].members);})
+    .filter(function(l){return l.cnt>=3;}).sort(function(a,b){return b.score-a.score;});
+}
+// 行业链（按东财大行业归并）
+function industryLines(){
+  const g={};
+  state.zt.forEach(function(s){
+    const b=state.boardMap[s.code];if(!b||!b.bigInd)return;
+    const c=b.bigInd;
+    if(!g[c.code])g[c.code]={name:c.name,members:[]};g[c.code].members.push(s);
+  });
+  return Object.keys(g).map(function(code){return lineFromMembers("ind",code,g[code].name,g[code].members);})
+    .filter(function(l){return l.cnt>=3;}).sort(function(a,b){return b.score-a.score;});
+}
 function tierStr(tierMap){ return Object.keys(tierMap).map(function(k){ return (k>1?k+"板":"首板")+tierMap[k]; }).join("·"); }
 function mlsDigest(){
-  const sec=sectorGroups(state.zt).filter(function(a){return a.cnt>=3;}).slice(0,3).map(function(a){return {name:a.name,cnt:a.cnt,maxLbc:a.maxLbc,lead:a.lead.name};});
+  const themes=themeLines().slice(0,4).map(function(l){return {code:l.code,name:l.name,cnt:l.cnt,maxLbc:l.maxLbc,lead:l.lead.name};});
+  const inds=industryLines().slice(0,3).map(function(l){return {code:l.code,name:l.name,cnt:l.cnt,maxLbc:l.maxLbc,lead:l.lead.name};});
   const nt=nameThemeGroups(state.zt).map(function(n){return {word:n.word,cnt:n.cnt};});
-  return {sec:sec,nt:nt};
+  return {themes:themes,inds:inds,nt:nt};
 }
 function mainLineHtml(){
-  const secAll=sectorGroups(state.zt);
-  const sec=secAll.filter(function(a){return a.cnt>=3;}).slice(0,3);
+  const hasNew=state.boardMap&&Object.keys(state.boardMap).length>0;
+  const themes=themeLines().slice(0,4);
+  const inds=industryLines().slice(0,3);
   const nt=nameThemeGroups(state.zt);
-  const dayLbl=function(d){ return d<=1?"首日":("连续"+d+"天"); };
+  const dayLbl=function(d){ d=d||1; return d<=1?"首日":("连续"+d+"天"); };
   const aNamesOf=function(mem){ return mem.filter(function(s){try{return strikeGrade(s).g==="A";}catch(e){return false;}}).map(function(s){return esc(s.name);}); };
+  const lineBlock=function(l,color,icon,tag){
+    const q=l.frc>=1&&l.zbRate<=20?"封板强":(l.frc>=0.5?"封板中":"封板弱/虚火");
+    const an=aNamesOf(l.members);
+    const cont=(l.continuous===true)?'<span style="color:var(--down)">梯队成梯✓</span>':'<span style="color:var(--up)">梯队断层</span>';
+    let h='<div style="font-size:12.5px;line-height:1.9;padding:6px 9px;margin:5px 0;border-left:3px solid '+color+';background:rgba(127,127,127,0.05)">';
+    h+='<b style="color:'+color+'">'+icon+esc(l.name)+'</b><span style="font-size:10.5px;color:var(--text3)"> '+tag+'</span>　'+l.cnt+'只涨停　最高<b style="color:var(--gold)">'+l.maxLbc+'板</b>（龙头 '+esc(l.lead.name)+'）　'+dayLbl(l.persist)+'　<b style="color:var(--text2)">主线分'+Math.round(l.score)+'</b>';
+    h+='<br><span style="color:var(--text3)">梯队：</span>'+tierStr(l.tierMap)+'　'+cont;
+    h+='<br><span style="color:var(--text3)">资金：</span>'+q+'（封成比'+l.frc.toFixed(2)+'·炸板率'+l.zbRate.toFixed(0)+'%）';
+    h+='<br><span style="color:var(--text3)">板块内 A 档：</span>'+(an.length?('<b style="color:var(--down)">'+an.join("、")+'</b>'):"<span style='color:var(--text3)'>无干净A档（一字排不进/烂板）</span>");
+    h+='</div>';
+    return h;
+  };
   let h='<div style="margin:0;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(127,127,127,0.05)">';
-  h+='<div style="font-size:13.5px;font-weight:700;margin-bottom:8px">🧭 最强主线题材<span style="font-size:11px;color:var(--text3);font-weight:400">　板块成线门槛：同题材≥3只涨停</span></div>';
-  if(!sec.length && !nt.length){
-    const top=secAll.slice(0,3).map(function(a){return esc(a.name)+a.cnt+"只";}).join("、");
-    h+='<div style="font-size:12.5px;line-height:1.8;color:var(--text2)"><b style="color:var(--up)">⚠ 无明显主线（混沌期）</b>：涨停分散、无板块成线（最多：'+(top||"--")+'）。<b>今日降低出手或空仓</b>，不接力零散个股。</div>';
+  h+='<div style="font-size:13.5px;font-weight:700;margin-bottom:8px">🧭 最强主线题材<span style="font-size:11px;color:var(--text3);font-weight:400">　双维度：题材链(跨行业)+行业链(大方向)，成线≥3只</span></div>';
+  if(!hasNew){
+    // 回退旧 hybk 行业聚类
+    const secAll=sectorGroups(state.zt);
+    const sec=secAll.filter(function(a){return a.cnt>=3;}).slice(0,3);
+    if(!sec.length&&!nt.length){
+      h+='<div style="font-size:12.5px;line-height:1.8;color:var(--text2)"><b style="color:var(--up)">⚠ 无明显主线（混沌期）</b>：涨停分散、无板块成线。<b>今日降低出手或空仓</b>，不接力零散个股。</div>';
+    }else{
+      sec.forEach(function(a){h+=lineBlock(a,"var(--blue)","【","行业(回退)");});
+    }
   }else{
-    nt.forEach(function(n){
-      const members=state.zt.filter(function(s){return n.codes.indexOf(s.code)>=0;});
-      const secs=[...new Set(members.map(function(s){return s.hybk;}))].slice(0,3).join("/");
-      const an=aNamesOf(members);
-      h+='<div style="font-size:12.5px;line-height:1.9;padding:5px 8px;margin:4px 0;border-left:3px solid var(--gold);background:rgba(212,175,55,0.08)">';
-      h+='<b style="color:var(--gold)">★ 题材系·'+esc(n.word)+'系</b>　'+n.cnt+'只　'+dayLbl(mlsDays("nt",n.word))+'　<span style="color:var(--text3)">跨行业：'+esc(secs)+'</span>';
-      h+='<br><span style="color:var(--text3)">成员：</span>'+members.map(function(s){return esc(s.name)+(s.lbc>1?s.lbc+"板":"首板");}).join("、");
-      h+='<br><span style="color:var(--text3)">板块内 A 档：</span>'+(an.length?('<b style="color:var(--down)">'+an.join("、")+'</b>'):"<span style='color:var(--text3)'>无干净A档（一字排不进/烂板）</span>");
-      h+='</div>';
-    });
-    sec.forEach(function(a){
-      const q=a.frc>=1&&a.zbRate<=20?"封板强":(a.frc>=0.5?"封板中":"封板弱/虚火");
-      const an=aNamesOf(a.members);
-      h+='<div style="font-size:12.5px;line-height:1.9;padding:5px 8px;margin:4px 0;border-left:3px solid var(--blue);background:rgba(90,140,220,0.07)">';
-      h+='<b style="color:var(--blue)">【'+esc(a.name)+'】行业</b>　'+a.cnt+'只涨停　最高<b style="color:var(--gold)">'+a.maxLbc+'板</b>（龙头 '+esc(a.lead.name)+'）　'+dayLbl(mlsDays("sec",a.name));
-      h+='<br><span style="color:var(--text3)">梯队：</span>'+tierStr(a.tierMap)+'　<span style="color:var(--text3)">'+q+'（炸板率'+a.zbRate.toFixed(0)+'%·封成比'+a.frc.toFixed(2)+'）</span>';
-      h+='<br><span style="color:var(--text3)">板块内 A 档：</span>'+(an.length?('<b style="color:var(--down)">'+an.join("、")+'</b>'):"<span style='color:var(--text3)'>无干净A档</span>");
-      h+='</div>';
-    });
+    if(!themes.length&&!inds.length){
+      h+='<div style="font-size:12.5px;line-height:1.8;color:var(--text2)"><b style="color:var(--up)">⚠ 无明显主线（混沌期）</b>：题材/行业均未成线（成线需≥3只涨停）。<b>今日降低出手或空仓</b>，不接力零散个股。</div>';
+    }else{
+      themes.forEach(function(l){h+=lineBlock(l,"var(--gold)","★题材·","题材链");});
+      inds.forEach(function(l){h+=lineBlock(l,"var(--blue)","【","行业链");});
+    }
   }
-  h+='<div style="font-size:11.5px;color:var(--text3);margin-top:8px;line-height:1.7">决策：<b style="color:var(--down)">只在主线内挑 A 档绿勾</b>（开板回封排队）；主线外 A 档降一级、仓位更轻；B 档一律不碰；无主线且无 A 档 → 空仓。</div>';
+  nt.forEach(function(n){
+    h+='<div style="font-size:11.5px;line-height:1.8;padding:3px 8px;margin:3px 0;border-left:2px solid var(--gold);color:var(--text2)">名称联动：<b style="color:var(--gold)">'+esc(n.word)+'系</b> '+n.cnt+'只（仅名称联动、非题材，需结合板块判断）</div>';
+  });
+  h+='<div style="font-size:11.5px;color:var(--text3);margin-top:8px;line-height:1.7">决策：<b style="color:var(--down)">只在主线内挑 A 档绿勾</b>（开板回封排队）；优先题材链、行业链佐证；主线外 A 档降一级、仓位更轻；B 档一律不碰；无主线且无 A 档 → 空仓。</div>';
   h+='</div>';
   return h;
 }
@@ -2427,25 +2534,42 @@ async function refresh(){
   }
   await Promise.all(jobs);
 
-  // 标记龙头
+  // v15 板块归属（大行业链 + 概念题材链），必须在涨停池就绪后
+  await loadBoardTypes(state.zt);
+  const hasBoard = state.boardMap && Object.keys(state.boardMap).length > 0;
+
+  // 标记龙头（全市场最高连板=总龙头）
   const maxLbc = state.zt.length ? Math.max(...state.zt.map(s => s.lbc)) : 0;
   const topSet = new Set(state.zt.filter(s => s.lbc === maxLbc).map(s => s.code));
   state.zt.forEach(s => { s.isTop = topSet.has(s.code) && s.lbc >= 2; });
 
-  // v12 板块龙头：全市场最高板=总龙头👑；每个行业最高板（并列取首封最早）=板块龙头；单票板块不标
+  // v15 板块龙头：总龙头👑；每条题材/行业线的 lead=板块龙头（成线≥3、最高板≥2），题材优先
   state.secLeader = {};
-  const secGroups = {};
-  state.zt.forEach(s => { (secGroups[s.hybk] = secGroups[s.hybk] || []).push(s); });
   state.zt.forEach(s => { if (s.isTop) state.secLeader[s.code] = { role:"top" }; });
-  const fbtKey = s => s.fbt ? hhmm2min(s.fbt) : 9999;
-  Object.keys(secGroups).forEach(k => {
-    const g = secGroups[k];
-    if (g.length < 2) return;                 // 单票板块不标龙头
-    const maxLb = Math.max(...g.map(x => x.lbc));
-    if (maxLb < 2) return;                    // 仅首板不标板块龙头
-    const lead = g.filter(x => x.lbc === maxLb).sort((a,b)=> fbtKey(a)-fbtKey(b))[0];
-    if (!state.secLeader[lead.code]) state.secLeader[lead.code] = { role:"sec", sec:lead.hybk, lbc:maxLb };
-  });
+  if (hasBoard){
+    const best = {};
+    themeLines().concat(industryLines()).forEach(function(l){
+      if (l.cnt < 3 || l.maxLbc < 2) return;
+      const c = l.lead.code;
+      if (!best[c] || l.score > best[c].score) best[c] = { sec:l.name, score:l.score };
+    });
+    Object.keys(best).forEach(function(c){
+      if (!state.secLeader[c]) state.secLeader[c] = { role:"sec", sec:best[c].sec };
+    });
+  } else {
+    // 回退：按 hybk 细分行业标板块龙头
+    const secGroups = {};
+    state.zt.forEach(s => { (secGroups[s.hybk] = secGroups[s.hybk] || []).push(s); });
+    const fbtKey = s => s.fbt ? hhmm2min(s.fbt) : 9999;
+    Object.keys(secGroups).forEach(k => {
+      const g = secGroups[k];
+      if (g.length < 2) return;                 // 单票板块不标龙头
+      const maxLb = Math.max(...g.map(x => x.lbc));
+      if (maxLb < 2) return;                    // 仅首板不标板块龙头
+      const lead = g.filter(x => x.lbc === maxLb).sort((a,b)=> fbtKey(a)-fbtKey(b))[0];
+      if (!state.secLeader[lead.code]) state.secLeader[lead.code] = { role:"sec", sec:lead.hybk, lbc:maxLb };
+    });
+  }
 
   // 提醒（仅盘中）
   if (inSession && state.loadOk) checkAlerts(state.zt);
