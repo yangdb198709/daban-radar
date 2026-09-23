@@ -223,7 +223,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 
 /* ============ 情绪综述卡 ============ */
 .senti-card{display:flex;flex-direction:column;gap:14px;padding:20px 22px}
-.senti-top{display:grid;grid-template-columns:auto 1fr auto;gap:22px;align-items:center}
+.senti-top{display:grid;grid-template-columns:auto auto auto;gap:22px;align-items:center;justify-content:flex-start}
 .senti-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
 .senti-b-main,.senti-b-side{min-width:0;display:flex}
 .senti-b-main>div,.senti-b-side>div{flex:1;min-width:0}
@@ -301,6 +301,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 @media (max-width:1100px){
   .kpi-bar{grid-template-columns:repeat(4,1fr)}
   .senti-top{grid-template-columns:1fr;gap:14px}
+  .senti-top .cycle-badge{justify-self:center}
   .senti-bottom{grid-template-columns:1fr}
   .senti-right{grid-template-columns:repeat(3,1fr)}
 }
