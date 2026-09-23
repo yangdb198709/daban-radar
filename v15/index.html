@@ -1289,14 +1289,16 @@ function nameThemeGroups(rows){
 }
 /* ===== v15 板块归属：大行业链 + 概念题材链 双维度归并 ===== */
 // 噪声板块（指数/互联互通/风格财报/昨日表现/地域统计），按名称关键词剔除
-const ML_NOISE_KW = ["普尔","罗素","MSCI","股通","融资融券","HS300","深成","深证","央视","AH股","超级品牌","盘股","盘成长","盘价值","市净率","破净","题材股","风格","中报","季报","昨日","新高","多板","热股","三角","特区"];
+const ML_NOISE_KW = ["普尔","罗素","MSCI","股通","融资融券","HS300","深成","深证","央视","AH股","超级品牌","盘股","盘成长","盘价值","市净率","破净","题材股","风格","中报","季报","昨日","新高","多板","热股","三角","特区","价股","QFII","重仓","持股","亏损","绩优","业绩","预增","预亏","举牌","回购","增持","减持","证金","汇金","社保","养老金","北向"];
 function isNoiseBoard(name){
   for(let i=0;i<ML_NOISE_KW.length;i++){ if(name.indexOf(ML_NOISE_KW[i])>=0) return true; }
   return false;
 }
 function secucodeOf(s){
-  const m=(s.m!=null)?s.m:(s.code.startsWith("6")?1:0);
-  return s.code+(m===1?".SH":".SZ");
+  const c=s.code;
+  if(c.startsWith("6"))return c+".SH";
+  if(c.startsWith("8")||c.startsWith("4")||c.startsWith("920"))return c+".BJ";
+  return c+".SZ";
 }
 // 解析单只股票的全部板块行 -> {bigInd,concepts}
 function parseBoardRows(rows){
@@ -1318,20 +1320,22 @@ function parseBoardRows(rows){
 }
 // 批量采集板块归属（增量，只取 boardMap 缺失的 code）
 async function loadBoardTypes(zt){
-  try{
-    const todo=zt.filter(function(s){return !state.boardMap[s.code];});
-    for(let i=0;i<todo.length;i+=15){
-      const batch=todo.slice(i,i+15);
-      const list=batch.map(secucodeOf).map(function(c){return '"'+c+'"';}).join(",");
-      const filt="(SECUCODE in ("+list+"))";
-      const u=API.boardType+"?reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=ALL&filter="+encodeURIComponent(filt)+"&pageNumber=1&pageSize=500";
-      const j=await jfetch(u,12000);
-      const rows=(j&&j.result&&j.result.data)||[];
-      const byCode={};
-      rows.forEach(function(r){const c=r.SECURITY_CODE;(byCode[c]=byCode[c]||[]).push(r);});
-      batch.forEach(function(s){ if(byCode[s.code]) state.boardMap[s.code]=parseBoardRows(byCode[s.code]); });
+  const todo=zt.filter(function(s){return !state.boardMap[s.code];});
+  for(let i=0;i<todo.length;i+=15){
+    const batch=todo.slice(i,i+15);
+    const list=batch.map(secucodeOf).map(function(c){return '"'+c+'"';}).join(",");
+    const filt="(SECUCODE in ("+list+"))";
+    const u=API.boardType+"?reportName=RPT_F10_CORETHEME_BOARDTYPE&columns=ALL&filter="+encodeURIComponent(filt)+"&pageNumber=1&pageSize=500";
+    let j=null;
+    for(let a=0;a<2;a++){
+      try{ j=await jfetch(u,12000); break; }catch(e){ j=null; await new Promise(function(r){setTimeout(r,600);}); }
     }
-  }catch(e){ /* 失败回退旧 hybk 逻辑 */ }
+    if(!j)continue;                                // 本批两次都失败：跳过，下次refresh补采，不连累其他批
+    const rows=(j&&j.result&&j.result.data)||[];
+    const byCode={};
+    rows.forEach(function(r){const c=r.SECURITY_CODE;(byCode[c]=byCode[c]||[]).push(r);});
+    batch.forEach(function(s){ if(byCode[s.code]) state.boardMap[s.code]=parseBoardRows(byCode[s.code]); });
+  }
 }
 // 持续性：该线（题材/行业）在过去 snap 中连续出现的天数
 function mlsDays(dim,code){
