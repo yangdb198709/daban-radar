@@ -224,7 +224,11 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 @keyframes flDown{0%,100%{background:transparent}40%{background:var(--down-bg)}}
 
 /* ============ 情绪综述卡 ============ */
-.senti-card{display:grid;grid-template-columns:auto 1fr auto;gap:22px;align-items:center;padding:20px 22px}
+.senti-card{display:flex;flex-direction:column;gap:14px;padding:20px 22px}
+.senti-top{display:grid;grid-template-columns:auto 1fr auto;gap:22px;align-items:center}
+.senti-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:stretch}
+.senti-b-main,.senti-b-side{min-width:0;display:flex}
+.senti-b-main>div,.senti-b-side>div{flex:1;min-width:0}
 .cycle-badge{width:110px;height:110px;border-radius:50%;border:3px solid var(--gold);display:flex;flex-direction:column;align-items:center;justify-content:center;flex:none;box-shadow:0 0 0 6px var(--gold-bg)}
 .cycle-badge .cv{font-size:30px;font-weight:900;color:var(--gold)}
 .cycle-badge .cl{font-size:12px;font-weight:700;color:var(--text2);margin-top:2px}
@@ -298,7 +302,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 /* ============ 响应式 ============ */
 @media (max-width:1100px){
   .kpi-bar{grid-template-columns:repeat(4,1fr)}
-  .senti-card{grid-template-columns:1fr;gap:16px}
+  .senti-top{grid-template-columns:1fr;gap:14px}
+  .senti-bottom{grid-template-columns:1fr}
   .senti-right{grid-template-columns:repeat(3,1fr)}
 }
 @media (max-width:768px){
@@ -1305,7 +1310,7 @@ function mainLineHtml(){
   const nt=nameThemeGroups(state.zt);
   const dayLbl=function(d){ return d<=1?"首日":("连续"+d+"天"); };
   const aNamesOf=function(mem){ return mem.filter(function(s){try{return strikeGrade(s).g==="A";}catch(e){return false;}}).map(function(s){return esc(s.name);}); };
-  let h='<div style="margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(127,127,127,0.05)">';
+  let h='<div style="margin:0;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(127,127,127,0.05)">';
   h+='<div style="font-size:13.5px;font-weight:700;margin-bottom:8px">🧭 最强主线题材<span style="font-size:11px;color:var(--text3);font-weight:400">　板块成线门槛：同题材≥3只涨停</span></div>';
   if(!sec.length && !nt.length){
     const top=secAll.slice(0,3).map(function(a){return esc(a.name)+a.cnt+"只";}).join("、");
@@ -1487,19 +1492,20 @@ function renderRecommend(){
       : { bg:"var(--panel3)", bd:"var(--line)", col:"var(--text2)", ic:"🗓️" };
     const scoreTxt = ph.adj !== 0 ? ("评分 " + ph.adj) : "评分不降";
     const passTxt = ph.passDelta ? (" · 达标线 +" + ph.passDelta) : "";
-    holidayBox = '<div style="grid-column:1/-1;margin-top:4px;padding:10px 14px;border-radius:12px;background:'+c.bg+';border:1px solid '+c.bd+';font-size:12px;line-height:1.75">'
+    holidayBox = '<div style="margin:0;padding:10px 14px;border-radius:12px;background:'+c.bg+';border:1px solid '+c.bd+';font-size:12px;line-height:1.75">'
       + '<div style="font-weight:900;color:'+c.col+'">'+c.ic+' '+ph.title+'（'+scoreTxt+passTxt+'）</div>'
       + '<div style="color:var(--text2);margin-top:2px">'+ph.action+'</div>'
       + '<div style="color:var(--text3);margin-top:3px;font-size:11.5px">'+trendLine+'　|　规则（T日打板/T+1卖）：d5-d6正常打A档；d4/d7收紧-2只打最强快进快出；d2-d3核心防坑-3不开新仓；d1末日-3不开新仓、逢高出不扛假；短假不降权</div>'
       + '</div>';
   } else {
-    holidayBox = '<div style="grid-column:1/-1;margin-top:4px;padding:9px 14px;border-radius:12px;background:var(--panel3);border:1px solid var(--line);font-size:11.5px;line-height:1.7;color:var(--text3)">'
+    holidayBox = '<div style="margin:0;padding:9px 14px;border-radius:12px;background:var(--panel3);border:1px solid var(--line);font-size:11.5px;line-height:1.7;color:var(--text3)">'
       + '🗓️ <b style="color:var(--text2)">大长假降权</b>：当前不在国庆/春节等连休≥7天大长假的前10个交易日窗口（五一、元旦、清明、端午、中秋等短假历史胜率与平时无异，不降权）。　' + trendLine + '</div>';
   }
 
   // 情绪综述卡
   const y = state.yest;
   $("#sentiCard").innerHTML = `
+    <div class="senti-top">
     <div class="cycle-badge"><span class="cv tnum">${senti.temp}</span><span class="cl">${senti.cycle}期 · 温度</span></div>
     <div class="senti-mid">
       <h2>市场情绪：<span style="color:var(--gold)">${senti.cycle}</span>
@@ -1516,7 +1522,11 @@ function renderRecommend(){
       <div class="it"><div class="v ${senti.pro != null && senti.pro >= 0.2 ? "up-c" : "down-c"} tnum">${senti.pro != null ? (senti.pro*100).toFixed(0)+"%" : "--"}</div><div class="k">晋级率</div></div>
       <div class="it"><div class="v blue tnum">${senti.zbN}</div><div class="k">炸板数</div></div>
     </div>
-    ${mainLineHtml()}${holidayBox}`;
+    </div>
+    <div class="senti-bottom">
+      <div class="senti-b-main">${mainLineHtml()}</div>
+      <div class="senti-b-side">${holidayBox}</div>
+    </div>`;
 
   // v6：达标（≥动态线）优先 + 候选（≥90%且未达动态线）也进推荐，达标优先、灵活选择
   const ztCount = state.zt.length;
