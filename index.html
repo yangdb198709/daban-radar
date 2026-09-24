@@ -340,6 +340,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .sk-warn{width:100%;font-size:12.5px;line-height:1.7;padding:9px 12px;border-radius:10px;font-weight:700}
 .sk-warn.empty{background:var(--gold-bg);border:1px solid var(--gold);color:var(--gold)}
 .sk-warn.pre{background:var(--up-bg);border:1px solid var(--up);color:var(--up)}
+.sk-warn.disc{background:rgba(91,140,255,.12);border:1px solid #5b8cff;color:#7aa2ff}
 .sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
 .sk-card{background:var(--panel2);border:1.5px solid var(--line);border-radius:14px;padding:13px 14px;cursor:pointer;transition:border-color .15s,transform .15s,box-shadow .15s;position:relative}
 .sk-card:hover{transform:translateY(-2px);border-color:var(--line2)}
@@ -367,10 +368,12 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .sk-watch.reverse{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple)}
 .sk-card.st-first{border-color:var(--up);box-shadow:0 0 0 1px var(--up)}
 .sk-card.st-reopen{border-color:var(--down);box-shadow:0 0 0 1px var(--down)}
+.sk-card.st-ready{border-color:#faad14;box-shadow:0 0 0 1px #faad14}
 .sk-card.st-blow{border-color:var(--gold)}
 .sk-state{position:absolute;top:10px;right:11px;font-size:10px;font-weight:900;padding:2px 7px;border-radius:6px}
 .sk-state.f{background:var(--up);color:#fff}
 .sk-state.g{background:var(--down);color:#06281f}
+.sk-state.y{background:#faad14;color:#2a1f00}
 .sk-state.b{background:var(--gold);color:#2a1f00}
 .sk-state.grey{background:var(--panel3);color:var(--text3)}
 .sk-feed{font-size:12.5px;line-height:1.9;max-height:340px;overflow-y:auto;margin-bottom:0}
@@ -895,7 +898,7 @@ const state = {
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v16.0";
+const APP_VER = "v16.1";
 const APP_VER_DATE = "2026-09-24";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -2577,6 +2580,7 @@ function soundEvent(kind){
   else if (kind === "zb"){ beep(340,.18,0); beep(220,.3,.13); }
   else if (kind === "chase"){ beep(660,.09,0); }
   else if (kind === "first"){ beep(880,.08,0); beep(1175,.12,.12); beep(1568,.18,.16); }
+  else if (kind === "ready"){ beep(660,.07,0); beep(880,.08,.08); }
   else if (kind === "reopen"){ beep(587,.08,0); beep(880,.1,.1); beep(1175,.16,.15); }
 }
 function checkAlerts(newZt){
@@ -2621,8 +2625,12 @@ function flashRow(code, dir){
    盘中 push2 实时 ulist（带 UT_QT）3秒轮询；封单看金额/封成比/瞬间速度
    ============================================================ */
 const SK = {
-  FUND_MIN:2000e4, RATIO_MIN:0.05, RATIO_GOOD:0.10, RATIO_HUGE:0.50,
-  GOLDEN_END:10*60, POLL_MS:3000, MAX_ZBC:2,
+  READY_FUND:500e4, READY_JUMP:300e4,                       // 预备·就位（黄）：封单≥500万 且 相邻轮询跳增≥300万
+  CONFIRM_FUND:1000e4, CONFIRM_JUMP:500e4, CONFIRM_RATIO:0.02, // 抢筹·确认（红/首封）：封单≥1000万 且 跳增≥500万 且 封成比≥2%
+  FUND_MIN:2000e4,
+  RATIO_MIN:0.05, RATIO_GOOD:0.10, RATIO_HUGE:0.50,         // 5%质量线（回封/7秒复核）
+  GOLDEN_START:9*60+30, GOLDEN_END:10*60,
+  POLL_FAST:2000, POLL_SLOW:4000, POLL_MS:3000, MAX_ZBC:2,
 };
 function round2(v){ return Math.round(v*100)/100; }
 function curHHMM(d=new Date()){ return d.getHours()*60+d.getMinutes(); }
@@ -2730,62 +2738,90 @@ async function strikePoll(){
   const pool=state.skPool; if(!pool||!pool.length)return;
   let rt; try{rt=await skFetchRt(pool);}catch(e){return;}
   const hm=curHHMM();
+  const SEALED=["first","reopen","oneWord","ready","thin"];
   for(const p of pool){
     const d=rt[p.code]; if(!d)continue;
     const prev=state.skRt[p.code];
     const sealedNow=d.bid>0&&p.nextZt&&d.bid>=p.nextZt-0.001&&d.sealAmt>0;
+    const prevSeal=prev?prev.sealAmt:0;
+    const delta=d.sealAmt-prevSeal;
+    const readyHit=d.sealAmt>=SK.READY_FUND&&delta>=SK.READY_JUMP;
+    const confirmHit=d.sealAmt>=SK.CONFIRM_FUND&&delta>=SK.CONFIRM_JUMP&&d.sealRatio>=SK.CONFIRM_RATIO;
+    const reopenHit=d.sealRatio>=SK.RATIO_MIN&&delta>=SK.READY_JUMP;
     if(!prev){
-      if(sealedNow&&hm<9*60+31){
+      if(sealedNow&&hm<SK.GOLDEN_START+1){
         state.skRt[p.code]={phase:"oneWord",zbc:0,sealAmt:d.sealAmt,pct:d.pct,open:d.open,high:d.high};
         addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"一字/秒板开盘，封单"+fmtNum(d.sealAmt)+"，买不进仅观察"});
       }else if(sealedNow){
-        state.skRt[p.code]={phase:"first",zbc:0,sealAmt:d.sealAmt,pct:d.pct,high:d.high};
+        state.skRt[p.code]={phase:"thin",zbc:0,sealAmt:d.sealAmt,sealRatio:d.sealRatio,pct:d.pct,high:d.high};
         addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"打开页面时已封板，封单"+fmtNum(d.sealAmt)+"，非新首封不弹窗，请自行判断是否排队"});
       }else{
         state.skRt[p.code]={phase:"pre",zbc:0,sealAmt:0,pct:d.pct,open:d.open,high:d.high};
       }
     }else{
-      const wasSealed=prev.phase==="first"||prev.phase==="reopen"||prev.phase==="oneWord";
+      const wasSealed=SEALED.includes(prev.phase);
       if(sealedNow&&!wasSealed){
-        if(prev.zbc===0){ state.skRt[p.code]={...prev,phase:"first",sealAmt:d.sealAmt,high:d.high}; handleFirst(p,d,hm); }
-        else{ state.skRt[p.code]={...prev,phase:"reopen",sealAmt:d.sealAmt,high:d.high}; handleReopen(p,d,hm,prev.zbc); }
+        if(prev.zbc===0){
+          if(confirmHit){ state.skRt[p.code]={...prev,phase:"first",sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high}; handleFirst(p,d,hm,delta); }
+          else if(readyHit){ state.skRt[p.code]={...prev,phase:"ready",sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high}; handleReady(p,d,hm,delta); }
+          else{ state.skRt[p.code]={...prev,phase:"thin",sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high};
+            addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"封板但封单/速度不足（封单"+fmtNum(d.sealAmt)+"），仅观察不催单"}); }
+        }else{
+          const zbc=prev.zbc;
+          state.skRt[p.code]={...prev,phase:reopenHit?"reopen":"thin",sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high};
+          handleReopen(p,d,hm,zbc,delta,reopenHit);
+        }
       }else if(!sealedNow&&wasSealed){
         const zbc=prev.zbc+1;
-        state.skRt[p.code]={...prev,phase:"blow",zbc,sealAmt:d.sealAmt,pct:d.pct,high:d.high};
+        state.skRt[p.code]={...prev,phase:"blow",zbc,sealAmt:0,pct:d.pct,high:d.high};
         handleBlow(p,d,hm,zbc);
       }else if(sealedNow&&wasSealed){
-        state.skRt[p.code]={...prev,sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high,pct:d.pct};
+        if((prev.phase==="ready"||prev.phase==="thin")&&prev.zbc===0){
+          if(confirmHit){ state.skRt[p.code]={...prev,phase:"first",sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high,pct:d.pct}; handleFirst(p,d,hm,delta); }
+          else if(prev.phase==="thin"&&readyHit){ state.skRt[p.code]={...prev,phase:"ready",sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high,pct:d.pct}; handleReady(p,d,hm,delta); }
+          else{ state.skRt[p.code]={...prev,phase:prev.phase,sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high,pct:d.pct}; }
+        }else{
+          state.skRt[p.code]={...prev,sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high,pct:d.pct};
+        }
       }else{
-        state.skRt[p.code]={...prev,sealAmt:d.sealAmt,pct:d.pct,high:d.high,last:d.last};
+        state.skRt[p.code]={...prev,pct:d.pct,high:d.high,last:d.last};
       }
     }
   }
   renderStrike();
 }
-function handleFirst(p,d,hm){
-  const fundOk=d.sealAmt>=SK.FUND_MIN, ratioOk=d.sealRatio>=SK.RATIO_MIN;
-  const inGolden=hm<=SK.GOLDEN_END&&hm>=9*60+30;
+function handleReady(p,d,hm,delta){
   const rec={code:p.code,name:p.name,lbc:p.lbc,nextLbc:p.lbc+1,ml:p.ml,fund:d.sealAmt,
-    ratio:round2(d.sealRatio),time:hm,fundOk,ratioOk};
+    delta,ratio:round2(d.sealRatio),time:hm};
+  addFeed({type:"ready",...rec});
+  if(!p.observeOnly)soundEvent("ready");
+}
+function handleFirst(p,d,hm,delta){
+  const fundOk=d.sealAmt>=SK.CONFIRM_FUND;
+  const jumpOk=delta>=SK.CONFIRM_JUMP;
+  const ratioOk=d.sealRatio>=SK.CONFIRM_RATIO;
+  const inGolden=hm<=SK.GOLDEN_END&&hm>=SK.GOLDEN_START;
+  const rec={code:p.code,name:p.name,lbc:p.lbc,nextLbc:p.lbc+1,ml:p.ml,fund:d.sealAmt,
+    delta,ratio:round2(d.sealRatio),time:hm,fundOk,jumpOk,ratioOk};
   addFeed({type:"first",...rec});
-  if(fundOk&&ratioOk&&inGolden&&!p.observeOnly){
+  if(fundOk&&jumpOk&&ratioOk&&inGolden&&!p.observeOnly){
     showSkAlert("f",rec); soundEvent("first");
   }else{
-    const why=p.observeOnly?"节前观察期":!inGolden?"非9:30-10:00黄金时段":!fundOk?"封单金额不足2000万":"封成比偏低";
+    const why=p.observeOnly?"节前观察期":!inGolden?"非9:30-10:00黄金时段":!fundOk?"封单不足1000万":!jumpOk?"封单跳增不足500万":"封成比偏低";
     addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"首封但"+why+"，仅观察不催单"});
   }
   setTimeout(()=>skRecheck(p.code),7000);
 }
-function handleReopen(p,d,hm,zbc){
-  const fundOk=d.sealAmt>=SK.FUND_MIN, ratioOk=d.sealRatio>=SK.RATIO_MIN;
-  const inGolden=hm<=SK.GOLDEN_END&&hm>=9*60+30;
+function handleReopen(p,d,hm,zbc,delta,reopenHit){
+  const ratioOk=d.sealRatio>=SK.RATIO_MIN;
+  const jumpOk=delta>=SK.READY_JUMP;
   const rec={code:p.code,name:p.name,lbc:p.lbc,nextLbc:p.lbc+1,ml:p.ml,fund:d.sealAmt,
-    ratio:round2(d.sealRatio),zbc,time:hm,fundOk,ratioOk};
+    delta,ratio:round2(d.sealRatio),zbc,time:hm,ratioOk,jumpOk};
   addFeed({type:"reopen",...rec});
-  if(zbc<=SK.MAX_ZBC&&fundOk&&ratioOk&&inGolden&&!p.observeOnly){
+  if(zbc<=SK.MAX_ZBC&&reopenHit&&!p.observeOnly){
     showSkAlert("g",rec); soundEvent("reopen");
   }else{
-    const why=p.observeOnly?"节前观察期":zbc>SK.MAX_ZBC?"炸板过多=烂板":!inGolden?"非黄金时段":!fundOk?"封单不足":"封成比偏低";
+    const why=p.observeOnly?"节前观察期":zbc>SK.MAX_ZBC?"炸板过多=烂板":!ratioOk?"封成比不足5%":"封单回补偏慢";
     addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"回封但"+why+"，不催单"});
   }
 }
@@ -2798,8 +2834,15 @@ async function skRecheck(code){
   try{
     const rt=await skFetchRt([p]), d=rt[code]; if(!d)return;
     const init=state.skRt[code], base=init&&init.sealAmt?init.sealAmt:0, grow=d.sealAmt-base;
-    const txt="封单复核："+fmtNum(d.sealAmt)+(grow>0?"（继续增厚↑"+fmtNum(grow)+"）":
-      grow<-base*0.2?"（明显撤单↓，警惕）":"（基本稳定）");
+    const sealed=d.bid>0&&p.nextZt&&d.bid>=p.nextZt-0.001;
+    let txt;
+    if(sealed&&d.sealRatio>=SK.RATIO_MIN){
+      txt="封单扎实：封成比"+(d.sealRatio*100).toFixed(1)+"%、封单"+fmtNum(d.sealAmt)+"，板已封稳，可继续持有/排队";
+    }else if(grow<-base*0.2||!sealed){
+      txt="封单偏虚（封成比"+(d.sealRatio*100).toFixed(1)+"%、"+(sealed?"明显撤单↓":"已开板")+"），未成交建议立刻撤单、勿追";
+    }else{
+      txt="封单复核："+fmtNum(d.sealAmt)+"、封成比"+(d.sealRatio*100).toFixed(1)+"%，观察是否爬到5%质量线";
+    }
     addFeed({type:"note",code,name:p.name,time:curHHMM(),txt});
     renderStrike();
   }catch(e){}
@@ -2813,7 +2856,7 @@ function showSkAlert(kind,r){
   el.className="sk-alert "+kind; el.hidden=false;
   el.innerHTML='<div class="sa-in"><span class="sa-ic">'+(isF?"🔴":"🟢")+'</span>'+
     '<div><div class="sa-tt">'+esc(r.name)+' '+(isF?"首封":"回封")+'！'+(r.ml?esc(r.ml)+" · ":"")+r.nextLbc+'板预期</div>'+
-    '<div class="sa-ms">封单 <b>'+fmtNum(r.fund)+'</b>（'+(isF?"瞬间跳增↑":"快速回补↑")+'） · 封成比 '+r.ratio.toFixed(2)+
+    '<div class="sa-ms">封单 <b>'+fmtNum(r.fund)+'</b>（'+(isF?("瞬间跳增↑"+fmtNum(r.delta||0)):"快速回补↑"+fmtNum(r.delta||0))+'） · 封成比 '+r.ratio.toFixed(2)+
     (isF?"":" · 炸"+r.zbc+"次重封")+'</div></div>'+
     '<span class="sa-act">立刻挂涨停抢</span>'+
     '<button class="sa-x" type="button">✕</button></div>';
@@ -2861,17 +2904,19 @@ function skPhaseText(){
 function skStateTag(ph,zbc){
   if(ph==="first")return '<span class="sk-state f">已首封</span>';
   if(ph==="reopen")return '<span class="sk-state g">已回封</span>';
+  if(ph==="ready")return '<span class="sk-state y">点火中</span>';
   if(ph==="oneWord")return '<span class="sk-state b">一字·买不进</span>';
   if(ph==="blow")return '<span class="sk-state b">炸板'+zbc+'</span>';
+  if(ph==="thin")return '<span class="sk-state grey">封单薄</span>';
   return '<span class="sk-state grey">待封</span>';
 }
 function skCardHtml(p){
   const rt=state.skRt[p.code]||{}, ph=rt.phase||"pre";
-  const cls=(ph==="first"?"st-first":ph==="reopen"?"st-reopen":ph==="blow"||ph==="oneWord"?"st-blow":"");
+  const cls=(ph==="first"?"st-first":ph==="reopen"?"st-reopen":ph==="ready"?"st-ready":ph==="blow"||ph==="oneWord"?"st-blow":"");
   const fund=rt.sealAmt>0?rt.sealAmt:p.fund;
   const ratio=rt.sealRatio>0?rt.sealRatio:p.ratio;
-  const moving=ph==="first"||ph==="reopen";
-  const speedTxt=moving?"瞬间跳增↑":ph==="oneWord"?"一字封死":ph==="blow"?("炸板"+(rt.zbc||1)):"待封板";
+  const moving=ph==="first"||ph==="reopen"||ph==="ready";
+  const speedTxt=ph==="ready"?"封单冒头·就位↑":ph==="thin"?"封单偏薄":moving?"瞬间跳增↑":ph==="oneWord"?"一字封死":ph==="blow"?("炸板"+(rt.zbc||1)):"待封板";
   const lowOpen=(ph==="pre")&&rt.pct!=null&&rt.pct<-2;
   return '<div class="sk-card '+cls+(p.observeOnly||lowOpen?" observe":"")+'" data-code="'+p.code+'">'+
     skStateTag(ph,rt.zbc||0)+
@@ -2894,6 +2939,7 @@ function skFeedHtml(){
   if(!f.length)return '<div style="color:var(--text3);font-size:12px;padding:6px">今日暂无首封/回封事件</div>';
   return f.map(e=>{
     if(e.type==="note")return '<div class="frow"><span class="ft tnum">'+e.clock+'</span><span class="fd">'+esc(e.txt)+'（'+esc(e.name)+'）</span></div>';
+    if(e.type==="ready")return '<div class="frow"><span class="ft tnum">'+e.clock+'</span><span class="fic" style="color:#faad14">🟡点火</span><span class="fd"><b>'+esc(e.name)+'</b> 封单 '+fmtNum(e.fund)+' · 跳增↑'+fmtNum(e.delta||0)+' · 封成比 '+(e.ratio!=null?Number(e.ratio).toFixed(2):"--")+'，手指就位</span></div>';
     if(e.type==="blow")return '<div class="frow"><span class="ft tnum">'+e.clock+'</span><span class="fic o">⚪炸板</span><span class="fd">'+esc(e.name)+' 第'+e.zbc+'次炸板</span></div>';
     const isF=e.type==="first";
     return '<div class="frow"><span class="ft tnum">'+e.clock+'</span><span class="fic '+(isF?"f":"g")+'">'+(isF?"🔴首封":"🟢回封")+'</span>'+
@@ -2911,7 +2957,8 @@ function renderStrike(){
     else if(ph.active&&ph.d<=3)warn='<div class="sk-warn pre">节前收缩期（D-'+ph.d+'）· 候选池仅观察、不开新仓，机会在节后。</div>';
     elS.innerHTML='<div class="sk-temp"><span class="t-v tnum" style="color:'+tcol+'">'+senti.temp+'°</span><span class="t-l">'+senti.cycle+'·市场温度</span></div>'+
       '<div class="sk-phase">'+skPhaseText()+'</div>'+
-      '<div class="sk-poll"><span class="sk-dot'+(state.skPolling?" on":"")+'"></span>'+(state.skPolling?"实时盯盘中":"轮询未启动")+'</div>'+warn;
+      '<div class="sk-poll"><span class="sk-dot'+(state.skPolling?" on":"")+'"></span>'+(state.skPolling?"实时盯盘中":"轮询未启动")+'</div>'+warn+
+      '<div class="sk-warn disc">成交纪律：首封拼手速、抢不到立刻撤；散户主等回封（绿）；封死好板不傻排；烂板（B）不碰。</div>';
   }
   const elP=$("#skPool");
   if(elP){
@@ -2919,7 +2966,7 @@ function renderStrike(){
     else{
       const sorted=[...pool].sort((a,b)=>{
         const ra=state.skRt[a.code]||{},rb=state.skRt[b.code]||{};
-        const as=["first","reopen"].includes(ra.phase)?1:0,bs=["first","reopen"].includes(rb.phase)?1:0;
+        const as=["first","reopen","ready"].includes(ra.phase)?1:0,bs=["first","reopen","ready"].includes(rb.phase)?1:0;
         if(as!==bs)return bs-as; return (rb.pct||0)-(ra.pct||0);
       });
       elP.innerHTML=sorted.map(skCardHtml).join("");
@@ -2937,10 +2984,22 @@ function startStrikePoll(){
   if(!state.skPool.length)return;
   state.skPolling=true;
   strikePoll();
-  state.skPollTimer=setInterval(()=>{ if(curHHMM()>15*60){stopStrikePoll();renderStrike();return;} strikePoll(); },SK.POLL_MS);
+  skScheduleNext();
+}
+function skPollInterval(){
+  const hm=curHHMM();
+  return (hm>=9*60+25&&hm<=SK.GOLDEN_END)?SK.POLL_FAST:SK.POLL_SLOW;
+}
+function skScheduleNext(){
+  if(!state.skPolling)return;
+  state.skPollTimer=setTimeout(()=>{
+    if(curHHMM()>15*60){stopStrikePoll();renderStrike();return;}
+    strikePoll();
+    if(state.skPolling)skScheduleNext();
+  },skPollInterval());
 }
 function stopStrikePoll(){
-  if(state.skPollTimer){clearInterval(state.skPollTimer);state.skPollTimer=null;}
+  if(state.skPollTimer){clearTimeout(state.skPollTimer);state.skPollTimer=null;}
   state.skPolling=false;
 }
 function loadLatestPool(){
