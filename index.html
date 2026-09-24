@@ -349,7 +349,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .sk-lbc .arrow{display:block;font-size:8.5px;color:var(--text3);font-weight:700;margin-top:1px}
 .sk-nm{font-size:16px;font-weight:900}
 .sk-cd{font-size:11px;color:var(--text3)}
-.sk-ztprice{margin-left:auto;font-size:10px;color:var(--text2);text-align:right;line-height:1.3}
+.sk-pctbig{margin-left:auto;margin-right:16px;font-size:20px;font-weight:900;line-height:1;white-space:nowrap}
+.sk-ztprice{font-size:10px;color:var(--text2);text-align:right;line-height:1.3}
 .sk-ztprice b{font-size:16px;color:var(--up);font-weight:900;display:block}
 .sk-core{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:11px 0 3px}
 .sk-m{border-radius:9px;padding:7px 8px 8px;text-align:center;background:var(--panel3)}
@@ -394,6 +395,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .sk-alert .sa-x{width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.22);color:#fff;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;flex:none}
 @media (max-width:680px){
   .sk-grid{grid-template-columns:1fr}
+  .sk-pctbig{font-size:18px;margin-right:12px}
   .sk-core{gap:5px}
   .sk-m .v{font-size:14px}
   .sk-poll{margin-left:0;width:100%}
@@ -416,7 +418,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v16.0</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v17.0</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -898,7 +900,7 @@ const state = {
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v16.1";
+const APP_VER = "v17.0";
 const APP_VER_DATE = "2026-09-24";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -2675,6 +2677,12 @@ function skWatchType(s){ return (s.zbc||0)>=1?{type:"reopen",label:"🟢回封"}
 function buildCandidatePool(){
   state._skLines=skBuildLines();
   const lines=state._skLines, senti=computeSentiment(), ph=preHolidayFactor();
+  const ztCount=(state.zt||[]).length, passLine=effectivePass();
+  // v17 历史胜率 w2 动态下限：发酵期放宽(84)不踏空；修复/高潮收紧(88)防坑；temp<55弱势已在下面空仓
+  let w2Floor;
+  if(senti.temp>=65&&senti.temp<=85)w2Floor=84;
+  else if(senti.temp>85)w2Floor=88;
+  else w2Floor=88;
   const cands=[];
   for(const s of state.zt||[]){
     const g=strikeGrade(s);
@@ -2683,6 +2691,8 @@ function buildCandidatePool(){
     if(s.lbc>=6) continue;
     if((s.zbc||0)>=3) continue;
     if(senti.temp<55) continue;
+    const hq=histQualify(s,ztCount), hit=hq.hit, w2=hit?hit.w2:null;
+    if(hit&&w2<w2Floor) continue;   // 仅历史概率低于动态下限才砍；无历史样本的保留、不缩口子
     const sealAmt=numOr(s.fund), sealRatio=s.amount?sealAmt/numOr(s.amount):0;
     let lbcS=0;
     if(s.lbc>=2&&s.lbc<=4)lbcS=30;
@@ -2697,12 +2707,23 @@ function buildCandidatePool(){
     let tS=0;
     if(senti.temp>=65&&senti.temp<=85)tS=16; else if(senti.temp>=55&&senti.temp<65)tS=11; else if(senti.temp>85)tS=9;
     const timeS=hhmm2min(s.fbt)<=SK.GOLDEN_END?8:3;
+    // v17 历史胜率加分 wS（概率背书，但不做一刀切硬卡）
+    let wS=0;
+    if(hit){
+      if(w2>=90)wS=15; else if(w2>=88)wS=11; else if(w2>=85)wS=8; else wS=4;
+    }
+    // v17 分层 tier：pass 绿（≥达标线）/ cand 黄（≥动态下限）/ none 灰（无回测）
+    let tier=hit?(w2>=passLine?"pass":"cand"):"none";
     cands.push({code:s.code,name:s.name,m:s.m,lbc:s.lbc,price:s.price,hybk:s.hybk,
       hs:s.hs||0,zbc:s.zbc||0,amount:numOr(s.amount),fund:sealAmt,ratio:round2(sealRatio),
-      ml:ml.name,mlRank:ml.rank,nextZt:nextZtPrice(s),watch:skWatchType(s),sk:lbcS+qS+mlS+tS+timeS});
+      ml:ml.name,mlRank:ml.rank,nextZt:nextZtPrice(s),watch:skWatchType(s),w2,tier,
+      sk:lbcS+qS+mlS+tS+timeS+wS});
   }
   cands.sort((a,b)=>b.sk-a.sk||b.lbc-a.lbc||b.ratio-a.ratio);
-  const observeOnly=!!(ph.active&&(ph.d<=3||ph.level==="noTrade"||ph.level==="danger"));
+  // v17 observeOnly 按“下一交易日（池实际使用日）”判定，修正建池日(D-4)与使用日(D-3)错位；复用 nextTradeDate(日期串)
+  const _nx=nextTradeDate(fmtDateISO(new Date())), _nxD=_nx?new Date(_nx+"T00:00:00"):new Date();
+  const phNext=preHolidayFactor(_nxD);
+  const observeOnly=!!(phNext.active&&(phNext.d<=3||phNext.level==="noTrade"||phNext.level==="danger"));
   const pool=cands.slice(0,6).map(p=>({...p,observeOnly,genDate:todayStr()}));
   state.skPool=pool; state.skPoolDate=todayStr();
   persistPool(pool);
@@ -2712,7 +2733,7 @@ function persistPool(pool){
   const today=studyDateStr();
   const rows=pool.map(p=>({code:p.code,name:p.name,m:p.m,lbc:p.lbc,price:p.price,hs:p.hs,
     amount:p.amount,zbc:p.zbc,ratio:p.ratio,fund:p.fund,ml:p.ml,nextZt:p.nextZt,
-    watch:p.watch,observeOnly:p.observeOnly,sk:p.sk}));
+    watch:p.watch,observeOnly:p.observeOnly,w2:p.w2,tier:p.tier,sk:p.sk}));
   upsertSnap(today,{pool:rows});
 }
 
@@ -2918,17 +2939,24 @@ function skCardHtml(p){
   const moving=ph==="first"||ph==="reopen"||ph==="ready";
   const speedTxt=ph==="ready"?"封单冒头·就位↑":ph==="thin"?"封单偏薄":moving?"瞬间跳增↑":ph==="oneWord"?"一字封死":ph==="blow"?("炸板"+(rt.zbc||1)):"待封板";
   const lowOpen=(ph==="pre")&&rt.pct!=null&&rt.pct<-2;
+  const w2Badge=p.w2==null
+    ? '<span class="sk-watch" style="background:var(--panel3);color:var(--text3)">无回测数据</span>'
+    : (p.tier==="pass"
+      ? '<span class="sk-watch" style="background:var(--down-bg);color:var(--down);border:1px solid var(--down)">✓历史可打 '+p.w2+'%</span>'
+      : '<span class="sk-watch" style="background:rgba(250,173,20,.14);color:#e8a313;border:1px solid rgba(250,173,20,.5)">△历史候选 '+p.w2+'%</span>');
   return '<div class="sk-card '+cls+(p.observeOnly||lowOpen?" observe":"")+'" data-code="'+p.code+'">'+
     skStateTag(ph,rt.zbc||0)+
     '<div class="sk-head"><div class="sk-lbc">'+p.lbc+'板<span class="arrow">→'+(p.lbc+1)+'板</span></div>'+
       '<div><span class="sk-nm">'+esc(p.name)+'</span>'+leaderTagHtml(p.code)+
-      '<div class="sk-cd tnum">'+p.code+(rt.pct!=null?' · <span style="color:'+(rt.pct>=0?"var(--up)":"var(--down)")+'">'+fmtPct(rt.pct)+'</span>':"")+'</div></div>'+
+      '<div class="sk-cd tnum">'+p.code+'</div></div>'+
+      '<div class="sk-pctbig tnum" style="color:'+(rt.pct==null?'var(--text3)':(rt.pct>=0?'var(--up)':'var(--down)'))+';">'+(rt.pct!=null?fmtPct(rt.pct):'--')+'</div>'+
       '<div class="sk-ztprice">明日涨停<b class="tnum">'+(p.nextZt?fmtPrice(p.nextZt):"--")+'</b></div></div>'+
     '<div class="sk-core">'+
       '<div class="sk-m fund"><div class="k">封单金额</div><div class="v tnum">'+fmtNum(fund)+'</div></div>'+
       '<div class="sk-m ratio"><div class="k">封成比</div><div class="v tnum">'+(ratio!=null?Number(ratio).toFixed(2):"--")+'</div></div>'+
       '<div class="sk-m speed '+(moving?"up":"")+'"><div class="k">累积速度</div><div class="v">'+speedTxt+'</div></div></div>'+
     '<div class="sk-sub">主线 <b>'+esc(p.ml||"--")+'</b> · 换手 <b>'+Number(p.hs).toFixed(1)+'%</b> · 炸板 <b>'+p.zbc+'次</b> · 成交 <b>'+fmtNum(p.amount)+'</b></div>'+
+    w2Badge+
     '<span class="sk-watch '+p.watch.type+'">明日盯 '+p.watch.label+'</span>'+
     (p.observeOnly?'<span class="sk-watch" style="background:var(--up-bg);color:var(--up);border:1px solid var(--up)">节前仅观察·不开新仓</span>':"")+
     (lowOpen?'<span class="sk-watch" style="background:var(--panel3);color:var(--text3)">低开不及预期·放弃</span>':"")+
