@@ -296,7 +296,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 /* ============ 空态 / 提示 ============ */
 .empty{padding:42px 20px;text-align:center;color:var(--text3);font-size:13px}
 .empty .big{font-size:15px;color:var(--text2);font-weight:700;margin-bottom:6px}
-.notice{font-size:11px;color:var(--text3);margin-top:10px;display:flex;gap:6px;align-items:center}
+.notice{font-size:11.5px;color:var(--text3);margin-top:10px;line-height:1.7;padding-left:22px;position:relative;min-width:0}
+.notice svg{position:absolute;left:2px;top:3px;flex:none}
 
 /* ============ 响应式 ============ */
 @media (max-width:1100px){
@@ -326,6 +327,76 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 @media (max-width:420px){
   .kpi-bar{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ============ v16 抢筹系统 ============ */
+.sk-status{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:13px 16px}
+.sk-temp{display:flex;flex-direction:column;line-height:1.15;flex:none}
+.sk-temp .t-v{font-size:30px;font-weight:900;line-height:1}
+.sk-temp .t-l{font-size:10.5px;font-weight:700;margin-top:3px}
+.sk-phase{font-size:13px;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.7}
+.sk-poll{margin-left:auto;font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;font-weight:700}
+.sk-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);flex:none}
+.sk-dot.on{background:var(--down);animation:pulse 1.4s infinite}
+.sk-warn{width:100%;font-size:12.5px;line-height:1.7;padding:9px 12px;border-radius:10px;font-weight:700}
+.sk-warn.empty{background:var(--gold-bg);border:1px solid var(--gold);color:var(--gold)}
+.sk-warn.pre{background:var(--up-bg);border:1px solid var(--up);color:var(--up)}
+.sk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.sk-card{background:var(--panel2);border:1.5px solid var(--line);border-radius:14px;padding:13px 14px;cursor:pointer;transition:border-color .15s,transform .15s,box-shadow .15s;position:relative}
+.sk-card:hover{transform:translateY(-2px);border-color:var(--line2)}
+.sk-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.sk-lbc{flex:none;font-size:14px;font-weight:900;padding:5px 9px;border-radius:9px;background:var(--panel3);color:var(--gold);line-height:1.1;text-align:center}
+.sk-lbc .arrow{display:block;font-size:8.5px;color:var(--text3);font-weight:700;margin-top:1px}
+.sk-nm{font-size:16px;font-weight:900}
+.sk-cd{font-size:11px;color:var(--text3)}
+.sk-ztprice{margin-left:auto;font-size:10px;color:var(--text2);text-align:right;line-height:1.3}
+.sk-ztprice b{font-size:16px;color:var(--up);font-weight:900;display:block}
+.sk-core{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:11px 0 3px}
+.sk-m{border-radius:9px;padding:7px 8px 8px;text-align:center;background:var(--panel3)}
+.sk-m .k{font-size:9.5px;color:var(--text3)}
+.sk-m .v{font-size:16px;font-weight:900;margin-top:3px;line-height:1.05}
+.sk-m.fund{background:linear-gradient(135deg,rgba(240,185,11,.2),rgba(240,185,11,.05));border:1px solid rgba(240,185,11,.4)}
+.sk-m.fund .v{color:#ffd24d}
+.sk-m.ratio .v{color:var(--blue)}
+.sk-m.speed .v{font-size:13px;line-height:1.2}
+.sk-m.speed.up .v{color:var(--down)}
+.sk-sub{font-size:11px;color:var(--text2);line-height:1.75;margin-top:7px}
+.sk-sub b{color:var(--text);font-weight:700}
+.sk-watch{display:inline-block;margin-top:8px;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:7px}
+.sk-watch.first{background:var(--up-bg);color:var(--up);border:1px solid var(--up)}
+.sk-watch.reopen{background:var(--down-bg);color:var(--down);border:1px solid var(--down)}
+.sk-watch.reverse{background:var(--purple-bg);color:var(--purple);border:1px solid var(--purple)}
+.sk-card.st-first{border-color:var(--up);box-shadow:0 0 0 1px var(--up)}
+.sk-card.st-reopen{border-color:var(--down);box-shadow:0 0 0 1px var(--down)}
+.sk-card.st-blow{border-color:var(--gold)}
+.sk-state{position:absolute;top:10px;right:11px;font-size:10px;font-weight:900;padding:2px 7px;border-radius:6px}
+.sk-state.f{background:var(--up);color:#fff}
+.sk-state.g{background:var(--down);color:#06281f}
+.sk-state.b{background:var(--gold);color:#2a1f00}
+.sk-state.grey{background:var(--panel3);color:var(--text3)}
+.sk-feed{font-size:12.5px;line-height:1.9;max-height:340px;overflow-y:auto;margin-bottom:0}
+.sk-feed .frow{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap;padding:5px 4px;border-bottom:1px dashed var(--line)}
+.sk-feed .ft{color:var(--text3);font-size:11px;flex:none}
+.sk-feed .fic{flex:none;font-weight:900}
+.sk-feed .fic.f{color:var(--up)} .sk-feed .fic.g{color:var(--down)} .sk-feed .fic.o{color:var(--text2)}
+.sk-feed .fd{color:var(--text2);font-size:11.5px}
+.sk-alert{position:fixed;top:0;left:0;right:0;z-index:9000;padding:11px 14px;transform:translateY(-112%);transition:transform .25s ease;box-shadow:var(--shadow)}
+.sk-alert.show{transform:translateY(0)}
+.sk-alert.f{background:linear-gradient(135deg,#d11f33,#f23645)}
+.sk-alert.g{background:linear-gradient(135deg,#06966f,#0ebd8d)}
+.sk-alert .sa-in{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:11px;flex-wrap:wrap;color:#fff}
+.sk-alert .sa-ic{font-size:25px;font-weight:900;flex:none}
+.sk-alert .sa-tt{font-size:16px;font-weight:900;line-height:1.25}
+.sk-alert .sa-ms{font-size:11.5px;font-weight:700;opacity:.96;line-height:1.5}
+.sk-alert .sa-act{margin-left:auto;font-size:12px;font-weight:900;background:rgba(255,255,255,.22);padding:7px 14px;border-radius:9px;white-space:nowrap}
+.sk-alert .sa-x{width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.22);color:#fff;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;flex:none}
+@media (max-width:680px){
+  .sk-grid{grid-template-columns:1fr}
+  .sk-core{gap:5px}
+  .sk-m .v{font-size:14px}
+  .sk-poll{margin-left:0;width:100%}
+  .sk-alert .sa-act{margin-left:0}
+  .sk-alert{padding:9px 11px}
+}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
@@ -342,7 +413,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v15.1</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v16.0</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -362,7 +433,8 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 
   <!-- ===== Tab 导航 ===== -->
   <nav class="tabs" id="tabs">
-    <button class="tab on" data-view="recommend">综合推荐<span class="cnt" id="cntRec">-</span></button>
+    <button class="tab on" data-view="strike">⚡抢筹<span class="cnt" id="cntStrike">-</span></button>
+    <button class="tab" data-view="recommend">综合推荐<span class="cnt" id="cntRec">-</span></button>
     <button class="tab" data-view="auction">9:25竞价<span class="cnt" id="cntAuc">-</span></button>
     <button class="tab" data-view="shouban">首板<span class="cnt" id="cntSb">-</span></button>
     <button class="tab" data-view="lianban">连板<span class="cnt" id="cntLb">-</span></button>
@@ -375,6 +447,19 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
     <button class="tab" data-view="guide">操作指南</button>
     <button class="tab" data-view="study">策略研究<span class="cnt" id="cntStudy">-</span></button>
   </nav>
+
+  <!-- ===== v16 抢筹（候选池前置 + 首封/回封秒级预警） ===== -->
+  <section class="view" id="view-strike">
+    <div class="panel sk-status" id="skStatus"></div>
+    <div class="sec-label">🎯 明日抢筹候选池（今日收盘后自动生成 · 3~6只 · 次日只盯这几只）</div>
+    <div class="sk-grid" id="skPool"></div>
+    <div class="sec-label">⚡ 今日首封 / 回封事件（秒级时间线）</div>
+    <div class="panel sk-feed" id="skFeed"></div>
+    <div class="notice">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+      打法：头天收盘后系统按「主线 × 连板甜区 × 封板质量 × 温度」给出候选池；次日 9:30-10:00 候选票<b>首封（红）</b>瞬间挂涨停抢，炸板后<b>回封（绿）</b>是更稳的二次买点。封单看<b>金额</b>不看手数，重点看封单金额、封成比与<b>瞬间累积速度</b>。不做池外票、不博"即将封板"、B档烂板不碰；数据自动落「策略研究」并次日回查。不构成投资建议。
+    </div>
+  </section>
 
   <!-- ===== 综合推荐 ===== -->
   <section class="view" id="view-recommend">
@@ -703,6 +788,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
   </div>
 </section>
 <div class="toast-wrap" id="toastWrap"></div>
+<div class="sk-alert" id="skAlert" hidden></div>
 
 <script>
 "use strict";
@@ -716,6 +802,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 
 /* ===== 常量与工具函数 ===== */
 const UT = "7eea3edcaed734bea9cbfc24409ed989";
+const UT_QT = "fa5fd1943c7b386f172d6893dbfba10b"; // 行情接口通用（ulist/stock/clist，必带否则被拦）
 const API = {
   ztPool:  "https://push2ex.eastmoney.com/getTopicZTPool",
   zbPool:  "https://push2ex.eastmoney.com/getTopicZBPool",
@@ -723,6 +810,7 @@ const API = {
   clist:   "https://push2delay.eastmoney.com/api/qt/clist/get",
   stock:   "https://push2delay.eastmoney.com/api/qt/stock/get",
   ulist:   "https://push2delay.eastmoney.com/api/qt/ulist.np/get",
+  ulistRt: "https://push2.eastmoney.com/api/qt/ulist.np/get",
   trends:  "https://push2his.eastmoney.com/api/qt/stock/trends2/get",
   boardType: "https://datacenter.eastmoney.com/securities/api/data/v1/get",
 };
@@ -796,18 +884,19 @@ const state = {
   zt: [], zb: [], sectors: [], chase: [], indices: [], yest: null,
   known: {}, // code -> {lbc} 用于盘中提醒
   lastUpdate: null, loadOk: false,
-  view: "recommend", sortKey: "fbt", sortDir: 1, secFilter: "all",
+  view: "strike", sortKey: "fbt", sortDir: 1, secFilter: "all",
   sound: true, theme: "dark",
   chart: null, timerId: null, inSession: false, hisChart: null,
   lastRecCodes: null, // v6.1 推荐池对比（入选/退出弹窗）
   mktTrend: null, mktTrendDate: null, // v12 大盘趋势（上证MA20/斜率/量能）
   secLeader: {}, // v12 板块龙头 code -> {role:'top'|'sec', sec, lbc}
   boardMap: {}, // v15 板块归属 code -> {bigInd:{code,name}, concepts:[{code,name}]}
+  skPool: [], skRt: {}, skFeed: [], skPolling: false, skPoolDate: null, skPollTimer: null, // v16 抢筹：候选池/实时封单/事件流/轮询
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v15.1";
-const APP_VER_DATE = "2026-09-23";
+const APP_VER = "v16.0";
+const APP_VER_DATE = "2026-09-24";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
   if (d.getDay() === 0 || d.getDay() === 6) return false;
@@ -2224,7 +2313,7 @@ function tierName(t){ return t==="strong"?"强势":(t==="core"?"重点":(t==="wa
 function upsertSnap(date, patch){
   const db = loadStudy();
   let s = db.snaps.find(x=>x.date===date);
-  if (!s){ s = {date:date, time:new Date().toTimeString().slice(0,5), pass:effectivePass(), items:[], auc:[]}; db.snaps.push(s); }
+  if (!s){ s = {date:date, time:new Date().toTimeString().slice(0,5), pass:effectivePass(), items:[], auc:[], pool:[], strikes:[]}; db.snaps.push(s); }
   Object.keys(patch).forEach(k=>{ s[k]=patch[k]; });
   saveStudy(db);
   return s;
@@ -2264,6 +2353,7 @@ async function verifySnaps(){
       const codes = {};
       (s.items||[]).forEach(it=>{ codes[it.code]=1; });
       (s.auc||[]).forEach(r=>{ codes[r.code]=1; });
+      (s.pool||[]).forEach(p=>{ codes[p.code]=1; });
       if (nd === today){
         if (s.verifiedDone) return;
         const hm0 = now.getHours()*60+now.getMinutes();
@@ -2293,6 +2383,7 @@ async function verifySnaps(){
         };
         (w.s.items||[]).forEach(apply);
         (w.s.auc||[]).forEach(apply);
+        (w.s.pool||[]).forEach(apply);
         w.s.verifiedDone = afterClose;
         saveStudy(db);
       } else {
@@ -2303,6 +2394,7 @@ async function verifySnaps(){
           const apply = function(rec){ rec.v = {nd:w.nd, mode:"zt", zt:!!zt[rec.code]}; };
           (w.s.items||[]).forEach(apply);
           (w.s.auc||[]).forEach(apply);
+          (w.s.pool||[]).forEach(apply);
           w.s.verifiedDone = true;
           saveStudy(db);
         }catch(e){}
@@ -2314,10 +2406,11 @@ async function verifySnaps(){
 }
 function collectVerified(){
   const db = loadStudy();
-  const G = {rec:[], strong:[], core:[], watch:[], skip:[]};
+  const G = {rec:[], strong:[], core:[], watch:[], skip:[], pool:[]};
   db.snaps.forEach(function(s){
     (s.items||[]).forEach(function(it){ if (it.v) G.rec.push(it); });
     (s.auc||[]).forEach(function(r){ if (r.v){ const k = G[r.tier]?r.tier:"watch"; G[k].push(r); } });
+    (s.pool||[]).forEach(function(p){ if (p.v) G.pool.push(p); });
   });
   return G;
 }
@@ -2483,6 +2576,8 @@ function soundEvent(kind){
   else if (kind === "promote"){ beep(784,.1,0); beep(1046,.1,.09); beep(1318,.2,.18); }
   else if (kind === "zb"){ beep(340,.18,0); beep(220,.3,.13); }
   else if (kind === "chase"){ beep(660,.09,0); }
+  else if (kind === "first"){ beep(880,.08,0); beep(1175,.12,.12); beep(1568,.18,.16); }
+  else if (kind === "reopen"){ beep(587,.08,0); beep(880,.1,.1); beep(1175,.16,.15); }
 }
 function checkAlerts(newZt){
   const prev = state.known;
@@ -2520,6 +2615,342 @@ function flashRow(code, dir){
     el.classList.add(dir === "up" ? "flash-up" : "flash-down");
   });
 }
+
+/* ============================================================
+   v16 抢筹系统：候选池前置（头天收盘3~6只）+ 首封/回封秒级预警
+   盘中 push2 实时 ulist（带 UT_QT）3秒轮询；封单看金额/封成比/瞬间速度
+   ============================================================ */
+const SK = {
+  FUND_MIN:2000e4, RATIO_MIN:0.05, RATIO_GOOD:0.10, RATIO_HUGE:0.50,
+  GOLDEN_END:10*60, POLL_MS:3000, MAX_ZBC:2,
+};
+function round2(v){ return Math.round(v*100)/100; }
+function curHHMM(d=new Date()){ return d.getHours()*60+d.getMinutes(); }
+function fmtClock(hm){ return String(Math.floor(hm/60)).padStart(2,"0")+":"+String(hm%60).padStart(2,"0"); }
+function numOr(v){ const n=Number(v); return isFinite(n)?n:0; }
+function nextZtPrice(s){
+  try{
+    const base=numOr(s.price); if(!(base>0))return null;
+    const coef=is20cm(s.code)?1.2:(isST(s.name)?1.05:1.1);
+    return round2(base*coef);
+  }catch(e){ return null; }
+}
+
+/* ---------- 主线（行业链）聚合，服务候选池排序 ---------- */
+function skBuildLines(){
+  const zt=state.zt||[], byHy={};
+  zt.forEach(s=>{ const k=s.hybk||"其他"; (byHy[k]=byHy[k]||[]).push(s); });
+  const lines=[];
+  Object.keys(byHy).forEach(k=>{
+    const mem=byHy[k], maxLbc=Math.max(...mem.map(x=>x.lbc));
+    const tiers=new Set(mem.map(x=>Math.min(x.lbc,5))).size;
+    lines.push({name:k, members:mem.map(x=>x.code), maxLbc, count:mem.length, tiers,
+      score:mem.length*4+maxLbc*6+tiers*5});
+  });
+  lines.sort((a,b)=>b.score-a.score);
+  return lines;
+}
+function skMainLineOf(s, lines){
+  for(let rank=0;rank<lines.length;rank++){
+    const l=lines[rank];
+    if(l.members.includes(s.code)){
+      const mem=(state.zt||[]).filter(x=>l.members.includes(x.code))
+        .sort((a,b)=>b.lbc-a.lbc||hhmm2min(a.fbt)-hhmm2min(b.fbt));
+      return {name:l.name, rank:mem.findIndex(x=>x.code===s.code)+1};
+    }
+  }
+  return {name:"", rank:99};
+}
+function skWatchType(s){ return (s.zbc||0)>=1?{type:"reopen",label:"🟢回封"}:{type:"first",label:"🔴首封"}; }
+
+/* ---------- 模块一：候选池生成（T日收盘后，3~6只） ---------- */
+function buildCandidatePool(){
+  state._skLines=skBuildLines();
+  const lines=state._skLines, senti=computeSentiment(), ph=preHolidayFactor();
+  const cands=[];
+  for(const s of state.zt||[]){
+    const g=strikeGrade(s);
+    if(g.g==="S"||g.g==="B") continue;
+    if(isST(s.name)) continue;
+    if(s.lbc>=6) continue;
+    if((s.zbc||0)>=3) continue;
+    if(senti.temp<55) continue;
+    const sealAmt=numOr(s.fund), sealRatio=s.amount?sealAmt/numOr(s.amount):0;
+    let lbcS=0;
+    if(s.lbc>=2&&s.lbc<=4)lbcS=30;
+    else if(s.lbc===1)lbcS=sealRatio>=SK.RATIO_GOOD?18:8;
+    else if(s.lbc===5)lbcS=10;
+    let qS=0;
+    if(sealRatio>=SK.RATIO_GOOD)qS+=22; else if(sealRatio>=SK.RATIO_MIN)qS+=14; else qS+=4;
+    if((s.zbc||0)===0)qS+=12; else if(s.zbc===1)qS+=7; else qS+=3;
+    if(s.hs>=3&&s.hs<=25)qS+=10; else if(s.hs<35)qS+=5;
+    const ml=skMainLineOf(s,lines);
+    const mlS=ml.rank<=3?20:ml.rank<=6?13:ml.name?7:3;
+    let tS=0;
+    if(senti.temp>=65&&senti.temp<=85)tS=16; else if(senti.temp>=55&&senti.temp<65)tS=11; else if(senti.temp>85)tS=9;
+    const timeS=hhmm2min(s.fbt)<=SK.GOLDEN_END?8:3;
+    cands.push({code:s.code,name:s.name,m:s.m,lbc:s.lbc,price:s.price,hybk:s.hybk,
+      hs:s.hs||0,zbc:s.zbc||0,amount:numOr(s.amount),fund:sealAmt,ratio:round2(sealRatio),
+      ml:ml.name,mlRank:ml.rank,nextZt:nextZtPrice(s),watch:skWatchType(s),sk:lbcS+qS+mlS+tS+timeS});
+  }
+  cands.sort((a,b)=>b.sk-a.sk||b.lbc-a.lbc||b.ratio-a.ratio);
+  const observeOnly=!!(ph.active&&(ph.d<=3||ph.level==="noTrade"||ph.level==="danger"));
+  const pool=cands.slice(0,6).map(p=>({...p,observeOnly,genDate:todayStr()}));
+  state.skPool=pool; state.skPoolDate=todayStr();
+  persistPool(pool);
+  return pool;
+}
+function persistPool(pool){
+  const today=studyDateStr();
+  const rows=pool.map(p=>({code:p.code,name:p.name,m:p.m,lbc:p.lbc,price:p.price,hs:p.hs,
+    amount:p.amount,zbc:p.zbc,ratio:p.ratio,fund:p.fund,ml:p.ml,nextZt:p.nextZt,
+    watch:p.watch,observeOnly:p.observeOnly,sk:p.sk}));
+  upsertSnap(today,{pool:rows});
+}
+
+/* ---------- 实时批量取封单 ---------- */
+async function skFetchRt(pool){
+  if(!pool.length)return {};
+  const secids=pool.map(p=>(p.m!=null?p.m:(p.code.startsWith("6")?1:0))+"."+p.code).join(",");
+  const url=API.ulistRt+"?ut="+UT_QT+"&fltt=2&invt=2&secids="+secids+
+    "&fields=f2,f3,f12,f14,f15,f17,f18,f31,f32,f48";
+  const j=await jfetch(url,6000);
+  const out={};
+  ((j.data&&j.data.diff)||[]).forEach(r=>{
+    const code=r.f12,bid=numOr(r.f31),sealVol=numOr(r.f32);
+    const sealAmt=(bid>0&&sealVol>0)?sealVol*100*bid:0, amt=numOr(r.f48);
+    out[code]={code,name:r.f14,last:numOr(r.f2),high:numOr(r.f15),open:numOr(r.f17),
+      preClose:numOr(r.f18),pct:numOr(r.f3),bid,sealVol,amt,sealAmt,sealRatio:amt>0?sealAmt/amt:0};
+  });
+  return out;
+}
+
+/* ---------- 模块二：轮询状态机 ---------- */
+async function strikePoll(){
+  const pool=state.skPool; if(!pool||!pool.length)return;
+  let rt; try{rt=await skFetchRt(pool);}catch(e){return;}
+  const hm=curHHMM();
+  for(const p of pool){
+    const d=rt[p.code]; if(!d)continue;
+    const prev=state.skRt[p.code];
+    const sealedNow=d.bid>0&&p.nextZt&&d.bid>=p.nextZt-0.001&&d.sealAmt>0;
+    if(!prev){
+      if(sealedNow&&hm<9*60+31){
+        state.skRt[p.code]={phase:"oneWord",zbc:0,sealAmt:d.sealAmt,pct:d.pct,open:d.open,high:d.high};
+        addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"一字/秒板开盘，封单"+fmtNum(d.sealAmt)+"，买不进仅观察"});
+      }else if(sealedNow){
+        state.skRt[p.code]={phase:"first",zbc:0,sealAmt:d.sealAmt,pct:d.pct,high:d.high};
+        addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"打开页面时已封板，封单"+fmtNum(d.sealAmt)+"，非新首封不弹窗，请自行判断是否排队"});
+      }else{
+        state.skRt[p.code]={phase:"pre",zbc:0,sealAmt:0,pct:d.pct,open:d.open,high:d.high};
+      }
+    }else{
+      const wasSealed=prev.phase==="first"||prev.phase==="reopen"||prev.phase==="oneWord";
+      if(sealedNow&&!wasSealed){
+        if(prev.zbc===0){ state.skRt[p.code]={...prev,phase:"first",sealAmt:d.sealAmt,high:d.high}; handleFirst(p,d,hm); }
+        else{ state.skRt[p.code]={...prev,phase:"reopen",sealAmt:d.sealAmt,high:d.high}; handleReopen(p,d,hm,prev.zbc); }
+      }else if(!sealedNow&&wasSealed){
+        const zbc=prev.zbc+1;
+        state.skRt[p.code]={...prev,phase:"blow",zbc,sealAmt:d.sealAmt,pct:d.pct,high:d.high};
+        handleBlow(p,d,hm,zbc);
+      }else if(sealedNow&&wasSealed){
+        state.skRt[p.code]={...prev,sealAmt:d.sealAmt,sealRatio:d.sealRatio,high:d.high,pct:d.pct};
+      }else{
+        state.skRt[p.code]={...prev,sealAmt:d.sealAmt,pct:d.pct,high:d.high,last:d.last};
+      }
+    }
+  }
+  renderStrike();
+}
+function handleFirst(p,d,hm){
+  const fundOk=d.sealAmt>=SK.FUND_MIN, ratioOk=d.sealRatio>=SK.RATIO_MIN;
+  const inGolden=hm<=SK.GOLDEN_END&&hm>=9*60+30;
+  const rec={code:p.code,name:p.name,lbc:p.lbc,nextLbc:p.lbc+1,ml:p.ml,fund:d.sealAmt,
+    ratio:round2(d.sealRatio),time:hm,fundOk,ratioOk};
+  addFeed({type:"first",...rec});
+  if(fundOk&&ratioOk&&inGolden&&!p.observeOnly){
+    showSkAlert("f",rec); soundEvent("first");
+  }else{
+    const why=p.observeOnly?"节前观察期":!inGolden?"非9:30-10:00黄金时段":!fundOk?"封单金额不足2000万":"封成比偏低";
+    addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"首封但"+why+"，仅观察不催单"});
+  }
+  setTimeout(()=>skRecheck(p.code),7000);
+}
+function handleReopen(p,d,hm,zbc){
+  const fundOk=d.sealAmt>=SK.FUND_MIN, ratioOk=d.sealRatio>=SK.RATIO_MIN;
+  const inGolden=hm<=SK.GOLDEN_END&&hm>=9*60+30;
+  const rec={code:p.code,name:p.name,lbc:p.lbc,nextLbc:p.lbc+1,ml:p.ml,fund:d.sealAmt,
+    ratio:round2(d.sealRatio),zbc,time:hm,fundOk,ratioOk};
+  addFeed({type:"reopen",...rec});
+  if(zbc<=SK.MAX_ZBC&&fundOk&&ratioOk&&inGolden&&!p.observeOnly){
+    showSkAlert("g",rec); soundEvent("reopen");
+  }else{
+    const why=p.observeOnly?"节前观察期":zbc>SK.MAX_ZBC?"炸板过多=烂板":!inGolden?"非黄金时段":!fundOk?"封单不足":"封成比偏低";
+    addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"回封但"+why+"，不催单"});
+  }
+}
+function handleBlow(p,d,hm,zbc){
+  addFeed({type:"blow",code:p.code,name:p.name,zbc,time:hm,last:d.last,pct:d.pct});
+  if(zbc>=SK.MAX_ZBC+1)addFeed({type:"note",code:p.code,name:p.name,time:hm,txt:"已炸"+zbc+"次=烂板，即便回封也不再推"});
+}
+async function skRecheck(code){
+  const p=state.skPool.find(x=>x.code===code); if(!p)return;
+  try{
+    const rt=await skFetchRt([p]), d=rt[code]; if(!d)return;
+    const init=state.skRt[code], base=init&&init.sealAmt?init.sealAmt:0, grow=d.sealAmt-base;
+    const txt="封单复核："+fmtNum(d.sealAmt)+(grow>0?"（继续增厚↑"+fmtNum(grow)+"）":
+      grow<-base*0.2?"（明显撤单↓，警惕）":"（基本稳定）");
+    addFeed({type:"note",code,name:p.name,time:curHHMM(),txt});
+    renderStrike();
+  }catch(e){}
+}
+
+/* ---------- 预警横幅 ---------- */
+let skAlertTimer=null;
+function showSkAlert(kind,r){
+  const el=$("#skAlert"); if(!el)return;
+  const isF=kind==="f";
+  el.className="sk-alert "+kind; el.hidden=false;
+  el.innerHTML='<div class="sa-in"><span class="sa-ic">'+(isF?"🔴":"🟢")+'</span>'+
+    '<div><div class="sa-tt">'+esc(r.name)+' '+(isF?"首封":"回封")+'！'+(r.ml?esc(r.ml)+" · ":"")+r.nextLbc+'板预期</div>'+
+    '<div class="sa-ms">封单 <b>'+fmtNum(r.fund)+'</b>（'+(isF?"瞬间跳增↑":"快速回补↑")+'） · 封成比 '+r.ratio.toFixed(2)+
+    (isF?"":" · 炸"+r.zbc+"次重封")+'</div></div>'+
+    '<span class="sa-act">立刻挂涨停抢</span>'+
+    '<button class="sa-x" type="button">✕</button></div>';
+  const x=$(".sa-x",el); if(x)x.onclick=closeSkAlert;
+  requestAnimationFrame(()=>el.classList.add("show"));
+  if(skAlertTimer)clearTimeout(skAlertTimer);
+  skAlertTimer=setTimeout(closeSkAlert,12000);
+}
+function closeSkAlert(){
+  const el=$("#skAlert"); if(!el)return;
+  el.classList.remove("show");
+  setTimeout(()=>{if(!el.classList.contains("show"))el.hidden=true;},280);
+}
+
+/* ---------- 事件流 + 落盘 ---------- */
+function addFeed(e){
+  state.skFeed.unshift({...e,clock:fmtClock(e.time)});
+  if(state.skFeed.length>60)state.skFeed.length=60;
+  persistStrikes(e);
+}
+function persistStrikes(e){
+  if(e.type==="note")return;
+  const today=studyDateStr(), db=loadStudy();
+  let snap=db.snaps.find(x=>x.date===today);
+  const rec={code:e.code,name:e.name,type:e.type,time:e.time,fund:e.fund||0,ratio:e.ratio||0,
+    zbc:e.zbc||0,lbc:e.lbc,ml:e.ml||"",date:todayStr()};
+  if(!snap){ upsertSnap(today,{strikes:[rec]}); return; }
+  snap.strikes=snap.strikes||[];
+  const key=rec.code+"-"+rec.type+"-"+rec.time;
+  if(!snap.strikes.some(x=>x.code+"-"+x.type+"-"+x.time===key)){
+    snap.strikes.push(rec); saveStudy(db);
+  }
+}
+
+/* ---------- 渲染 ---------- */
+function skPhaseText(){
+  const d=new Date(),w=d.getDay(),hm=curHHMM(d),n=state.skPool.length;
+  if(w===0||w===6)return "今日休市 · 候选池将于下个交易日收盘后自动生成";
+  if(hm<9*60+25)return n?("盘前 · 候选池 "+n+" 只已就绪（上一交易日收盘选定），9:25看竞价、9:30盯首封"):"盘前 · 等待今日数据";
+  if(hm<9*60+30)return "集合竞价定稿 · 正按竞价强弱排序（一字置顶、低开降级）";
+  if(hm<=SK.GOLDEN_END)return "⚡ 抢筹黄金时段 9:30-10:00 · 首封红 / 回封绿，秒级盯盘";
+  if(hm<15*60)return "黄金时段已过 · 首封降权，仅处理回封与持仓";
+  return "已收盘 · 正在生成明日候选池";
+}
+function skStateTag(ph,zbc){
+  if(ph==="first")return '<span class="sk-state f">已首封</span>';
+  if(ph==="reopen")return '<span class="sk-state g">已回封</span>';
+  if(ph==="oneWord")return '<span class="sk-state b">一字·买不进</span>';
+  if(ph==="blow")return '<span class="sk-state b">炸板'+zbc+'</span>';
+  return '<span class="sk-state grey">待封</span>';
+}
+function skCardHtml(p){
+  const rt=state.skRt[p.code]||{}, ph=rt.phase||"pre";
+  const cls=(ph==="first"?"st-first":ph==="reopen"?"st-reopen":ph==="blow"||ph==="oneWord"?"st-blow":"");
+  const fund=rt.sealAmt>0?rt.sealAmt:p.fund;
+  const ratio=rt.sealRatio>0?rt.sealRatio:p.ratio;
+  const moving=ph==="first"||ph==="reopen";
+  const speedTxt=moving?"瞬间跳增↑":ph==="oneWord"?"一字封死":ph==="blow"?("炸板"+(rt.zbc||1)):"待封板";
+  const lowOpen=(ph==="pre")&&rt.pct!=null&&rt.pct<-2;
+  return '<div class="sk-card '+cls+(p.observeOnly||lowOpen?" observe":"")+'" data-code="'+p.code+'">'+
+    skStateTag(ph,rt.zbc||0)+
+    '<div class="sk-head"><div class="sk-lbc">'+p.lbc+'板<span class="arrow">→'+(p.lbc+1)+'板</span></div>'+
+      '<div><span class="sk-nm">'+esc(p.name)+'</span>'+leaderTagHtml(p.code)+
+      '<div class="sk-cd tnum">'+p.code+(rt.pct!=null?' · <span style="color:'+(rt.pct>=0?"var(--up)":"var(--down)")+'">'+fmtPct(rt.pct)+'</span>':"")+'</div></div>'+
+      '<div class="sk-ztprice">明日涨停<b class="tnum">'+(p.nextZt?fmtPrice(p.nextZt):"--")+'</b></div></div>'+
+    '<div class="sk-core">'+
+      '<div class="sk-m fund"><div class="k">封单金额</div><div class="v tnum">'+fmtNum(fund)+'</div></div>'+
+      '<div class="sk-m ratio"><div class="k">封成比</div><div class="v tnum">'+(ratio!=null?Number(ratio).toFixed(2):"--")+'</div></div>'+
+      '<div class="sk-m speed '+(moving?"up":"")+'"><div class="k">累积速度</div><div class="v">'+speedTxt+'</div></div></div>'+
+    '<div class="sk-sub">主线 <b>'+esc(p.ml||"--")+'</b> · 换手 <b>'+Number(p.hs).toFixed(1)+'%</b> · 炸板 <b>'+p.zbc+'次</b> · 成交 <b>'+fmtNum(p.amount)+'</b></div>'+
+    '<span class="sk-watch '+p.watch.type+'">明日盯 '+p.watch.label+'</span>'+
+    (p.observeOnly?'<span class="sk-watch" style="background:var(--up-bg);color:var(--up);border:1px solid var(--up)">节前仅观察·不开新仓</span>':"")+
+    (lowOpen?'<span class="sk-watch" style="background:var(--panel3);color:var(--text3)">低开不及预期·放弃</span>':"")+
+  '</div>';
+}
+function skFeedHtml(){
+  const f=state.skFeed||[];
+  if(!f.length)return '<div style="color:var(--text3);font-size:12px;padding:6px">今日暂无首封/回封事件</div>';
+  return f.map(e=>{
+    if(e.type==="note")return '<div class="frow"><span class="ft tnum">'+e.clock+'</span><span class="fd">'+esc(e.txt)+'（'+esc(e.name)+'）</span></div>';
+    if(e.type==="blow")return '<div class="frow"><span class="ft tnum">'+e.clock+'</span><span class="fic o">⚪炸板</span><span class="fd">'+esc(e.name)+' 第'+e.zbc+'次炸板</span></div>';
+    const isF=e.type==="first";
+    return '<div class="frow"><span class="ft tnum">'+e.clock+'</span><span class="fic '+(isF?"f":"g")+'">'+(isF?"🔴首封":"🟢回封")+'</span>'+
+      '<span class="fd"><b>'+esc(e.name)+'</b> '+fmtNum(e.fund)+' · 封成比 '+(e.ratio!=null?Number(e.ratio).toFixed(2):"--")+(isF?" · 跳增↑":" · 炸"+(e.zbc||0)+"次回补↑")+'</span></div>';
+  }).join("");
+}
+function renderStrike(){
+  const senti=computeSentiment(),ph=preHolidayFactor(),pool=state.skPool||[];
+  const elS=$("#skStatus");
+  if(elS){
+    const tcol=senti.temp<55?"var(--up)":senti.temp<=85?"var(--down)":"var(--gold)";
+    let warn="";
+    if(senti.temp<55)warn='<div class="sk-warn empty">温度 '+senti.temp+'°（&lt;55）· 无高质量抢筹环境，今日原则上空仓、不追首封。</div>';
+    else if(ph.active&&(ph.level==="noTrade"||ph.d<=1))warn='<div class="sk-warn pre">'+esc(ph.label||"节前")+' · '+esc(ph.advice||"不开新打板仓，能出尽出")+'</div>';
+    else if(ph.active&&ph.d<=3)warn='<div class="sk-warn pre">节前收缩期（D-'+ph.d+'）· 候选池仅观察、不开新仓，机会在节后。</div>';
+    elS.innerHTML='<div class="sk-temp"><span class="t-v tnum" style="color:'+tcol+'">'+senti.temp+'°</span><span class="t-l">'+senti.cycle+'·市场温度</span></div>'+
+      '<div class="sk-phase">'+skPhaseText()+'</div>'+
+      '<div class="sk-poll"><span class="sk-dot'+(state.skPolling?" on":"")+'"></span>'+(state.skPolling?"实时盯盘中":"轮询未启动")+'</div>'+warn;
+  }
+  const elP=$("#skPool");
+  if(elP){
+    if(!pool.length)elP.innerHTML='<div class="empty-advice"><div class="big">暂无候选</div><div class="desc">收盘后系统自动生成明日候选池；温度不足或无主线前排时<b>宁可空仓</b>。</div></div>';
+    else{
+      const sorted=[...pool].sort((a,b)=>{
+        const ra=state.skRt[a.code]||{},rb=state.skRt[b.code]||{};
+        const as=["first","reopen"].includes(ra.phase)?1:0,bs=["first","reopen"].includes(rb.phase)?1:0;
+        if(as!==bs)return bs-as; return (rb.pct||0)-(ra.pct||0);
+      });
+      elP.innerHTML=sorted.map(skCardHtml).join("");
+    }
+  }
+  const cnt=$("#cntStrike"); if(cnt)cnt.textContent=pool.length;
+  const elF=$("#skFeed"); if(elF)elF.innerHTML=skFeedHtml();
+}
+
+/* ---------- 轮询启停 / 池恢复 / 日重置 ---------- */
+function startStrikePoll(){
+  stopStrikePoll();
+  const d=new Date(); if(d.getDay()===0||d.getDay()===6)return;
+  const hm=curHHMM(d); if(hm<9*60+25||hm>15*60)return;
+  if(!state.skPool.length)return;
+  state.skPolling=true;
+  strikePoll();
+  state.skPollTimer=setInterval(()=>{ if(curHHMM()>15*60){stopStrikePoll();renderStrike();return;} strikePoll(); },SK.POLL_MS);
+}
+function stopStrikePoll(){
+  if(state.skPollTimer){clearInterval(state.skPollTimer);state.skPollTimer=null;}
+  state.skPolling=false;
+}
+function loadLatestPool(){
+  try{
+    const db=loadStudy();
+    const arr=db.snaps.filter(s=>(s.pool||[]).length).sort((a,b)=>a.date<b.date?1:-1);
+    if(arr.length){ state.skPool=arr[0].pool.map(p=>({...p})); state.skPoolDate=Number(String(arr[0].date).replace(/-/g,"")); }
+  }catch(e){}
+}
+function resetSkForNewDay(){ state.skFeed=[]; state.skRt={}; }
 
 /* ===== 数据刷新主流程 ===== */
 async function refresh(){
@@ -2588,6 +3019,9 @@ async function refresh(){
   state.loadOk = true;
   autoSnap();
   const now = new Date();
+  if (curHHMM(now)>=15*60 && state.zt.length && state.skPoolDate!==todayStr()){
+    buildCandidatePool();
+  }
   state.lastUpdate = now.toTimeString().slice(0,8);
   renderAllViews();
 }
@@ -2595,7 +3029,8 @@ async function refresh(){
 function renderAllViews(){
   var _vb=document.getElementById("verBadge"); if(_vb){ try{_vb.textContent=APP_VER;}catch(e){} }
   renderKpi(computeSentiment());
-  if (state.view === "recommend") renderRecommend();
+  if (state.view === "strike") renderStrike();
+  else if (state.view === "recommend") renderRecommend();
   else if (state.view === "shouban") renderShouban();
   else if (state.view === "lianban") renderLianban();
   else if (state.view === "longtou") renderLongtou();
@@ -3092,6 +3527,15 @@ function schedule(){
   const inSession = isTradeTime();
   const interval = inSession ? 6000 : (isPreMarket() ? 30000 : 20000);
   state.timerId = setInterval(() => { refresh(); }, interval);
+  manageStrikePoll(); // v16 抢筹轮询随交易时段启停
+}
+function manageStrikePoll(){
+  const d=new Date();
+  if(d.getDay()===0||d.getDay()===6){ stopStrikePoll(); return; }
+  const hm=curHHMM(d);
+  const should=hm>=9*60+25&&hm<=15*60&&state.skPool.length>0;
+  if(should&&!state.skPolling)startStrikePoll();
+  else if(!should&&state.skPolling)stopStrikePoll();
 }
 
 /* ===== 初始化 ===== */
@@ -3100,6 +3544,8 @@ async function init(){
   bindStudy();
   autoLoadDataFile();
   $("#btnSound").classList.add("active");
+  loadLatestPool();   // v16 恢复最近交易日收盘生成的候选池
+  resetSkForNewDay(); // 清空当日实时事件流与封单状态
   tickClock();
   setInterval(tickClock, 1000);
   schedule();
@@ -3111,6 +3557,8 @@ async function init(){
   setInterval(() => { verifySnaps().catch(()=>{}); }, 10*60*1000);
   setInterval(() => { if (state.view === "auction") refreshAuction().catch(()=>{}); }, 60*1000);
   await refresh();
+  manageStrikePoll(); // refresh 可能已建池，盘中据此启动抢筹轮询
+  renderStrike();
   if (isTradeTime()){
     // 盘中每 5 分钟刷新一次昨日溢价数据
     setInterval(() => {
