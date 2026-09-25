@@ -900,8 +900,8 @@ const state = {
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v17.0";
-const APP_VER_DATE = "2026-09-24";
+const APP_VER = "v17.1";
+const APP_VER_DATE = "2026-09-25";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
   if (d.getDay() === 0 || d.getDay() === 6) return false;
@@ -2359,6 +2359,7 @@ async function verifySnaps(){
       (s.items||[]).forEach(it=>{ codes[it.code]=1; });
       (s.auc||[]).forEach(r=>{ codes[r.code]=1; });
       (s.pool||[]).forEach(p=>{ codes[p.code]=1; });
+      (s.strikes||[]).forEach(r=>{ codes[r.code]=1; });
       if (nd === today){
         if (s.verifiedDone) return;
         const hm0 = now.getHours()*60+now.getMinutes();
@@ -2389,6 +2390,7 @@ async function verifySnaps(){
         (w.s.items||[]).forEach(apply);
         (w.s.auc||[]).forEach(apply);
         (w.s.pool||[]).forEach(apply);
+        (w.s.strikes||[]).forEach(apply);
         w.s.verifiedDone = afterClose;
         saveStudy(db);
       } else {
@@ -2400,6 +2402,7 @@ async function verifySnaps(){
           (w.s.items||[]).forEach(apply);
           (w.s.auc||[]).forEach(apply);
           (w.s.pool||[]).forEach(apply);
+          (w.s.strikes||[]).forEach(apply);
           w.s.verifiedDone = true;
           saveStudy(db);
         }catch(e){}
@@ -2411,11 +2414,12 @@ async function verifySnaps(){
 }
 function collectVerified(){
   const db = loadStudy();
-  const G = {rec:[], strong:[], core:[], watch:[], skip:[], pool:[]};
+  const G = {rec:[], strong:[], core:[], watch:[], skip:[], pool:[], sk:[]};
   db.snaps.forEach(function(s){
     (s.items||[]).forEach(function(it){ if (it.v) G.rec.push(it); });
     (s.auc||[]).forEach(function(r){ if (r.v){ const k = G[r.tier]?r.tier:"watch"; G[k].push(r); } });
     (s.pool||[]).forEach(function(p){ if (p.v) G.pool.push(p); });
+    (s.strikes||[]).forEach(function(r){ if (r.v && (r.type==="first"||r.type==="reopen")) G.sk.push(r); });
   });
   return G;
 }
@@ -2439,6 +2443,7 @@ function renderVerify(){
   const G = collectVerified();
   const defs = [
     {key:"rec", name:"雷达综合推荐", color:"var(--down)"},
+    {key:"sk", name:"抢筹首封/回封信号", color:"var(--gold)"},
     {key:"strong", name:"竞价强势通道", color:"var(--gold)"},
     {key:"core", name:"竞价重点观察", color:"var(--blue)"},
     {key:"watch", name:"竞价一般观察", color:"var(--text2)"},
@@ -2491,7 +2496,7 @@ function csvCell(v){
 }
 function exportStudyCsv(){
   const db = loadStudy();
-  const head = ["信号日","来源","代码","名称","评分","竞价涨幅%","量比","连板","档位","次日日期","次日最高涨幅%","次日收盘涨幅%","冲高(最高≥2%)","收红","次日连板","验证方式"];
+  const head = ["信号日","来源","代码","名称","评分","竞价涨幅%","量比","连板","档位","次日日期","次日最高涨幅%","次日收盘涨幅%","冲高(最高≥2%)","收红","次日连板","验证方式","封单金额","封单跳增","封成比","主线"];
   const lines = [head.join(",")];
   const vcols = v => {
     if (!v) return ["","","","","",""];
@@ -2500,10 +2505,13 @@ function exportStudyCsv(){
   };
   db.snaps.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(function(s){
     (s.items||[]).forEach(function(it){
-      lines.push([s.date,"雷达推荐",it.code,it.name,it.score,"","","",""].concat(vcols(it.v)).map(csvCell).join(","));
+      lines.push([s.date,"雷达推荐",it.code,it.name,it.score,"","","",""].concat(vcols(it.v)).concat(["","","",""]).map(csvCell).join(","));
     });
     (s.auc||[]).forEach(function(r){
-      lines.push([s.date,"竞价-"+tierName(r.tier),r.code,r.name,"",(r.ag==null?"":r.ag),(r.vr==null?"":r.vr),(r.lbc==null?"":r.lbc),tierName(r.tier)].concat(vcols(r.v)).map(csvCell).join(","));
+      lines.push([s.date,"竞价-"+tierName(r.tier),r.code,r.name,"",(r.ag==null?"":r.ag),(r.vr==null?"":r.vr),(r.lbc==null?"":r.lbc),tierName(r.tier)].concat(vcols(r.v)).concat(["","","",""]).map(csvCell).join(","));
+    });
+    (s.strikes||[]).forEach(function(r){
+      lines.push([s.date,"抢筹-"+r.type,r.code,r.name,"","","",(r.lbc==null?"":r.lbc),r.type].concat(vcols(r.v)).concat([r.fund,r.delta,(r.ratio==null?"":r.ratio),r.ml||""]).map(csvCell).join(","));
     });
   });
   const blob = new Blob(["﻿"+lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
@@ -2902,7 +2910,7 @@ function persistStrikes(e){
   if(e.type==="note")return;
   const today=studyDateStr(), db=loadStudy();
   let snap=db.snaps.find(x=>x.date===today);
-  const rec={code:e.code,name:e.name,type:e.type,time:e.time,fund:e.fund||0,ratio:e.ratio||0,
+  const rec={code:e.code,name:e.name,type:e.type,time:e.time,fund:e.fund||0,delta:e.delta||0,ratio:e.ratio||0,
     zbc:e.zbc||0,lbc:e.lbc,ml:e.ml||"",date:todayStr()};
   if(!snap){ upsertSnap(today,{strikes:[rec]}); return; }
   snap.strikes=snap.strikes||[];
