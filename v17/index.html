@@ -282,6 +282,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .btnv.gold{border-color:var(--gold);color:var(--gold);background:var(--gold-bg)}
 .study-row{display:flex;gap:10px;align-items:center;padding:9px 8px;border-bottom:1px solid var(--line);font-size:12.5px;flex-wrap:wrap}
 .risk-line{margin-top:6px;padding:5px 8px;border-radius:7px;background:rgba(250,173,20,.12);border:1px solid rgba(250,173,20,.45);color:#FAAD14;font-size:11.5px;font-weight:700;line-height:1.5}
+.fund-risk-box{margin:0 0 10px;padding:8px 11px;border-radius:9px;background:rgba(242,54,69,.10);border:1px solid rgba(242,54,69,.5);color:#ff6b72;font-size:12px;font-weight:700;line-height:1.7}
+.fund-risk-box .fr-item{display:inline-block;margin:2px 4px 0;padding:1px 8px;border-radius:6px;background:rgba(242,54,69,.18);color:#ff858d;font-weight:700}
+.fund-risk-box .fr-sub{font-size:10.5px;font-weight:400;color:var(--text3);margin-top:3px}
 .rcard .price{font-size:21px !important;font-weight:900}
 .rcard .win-badge{font-size:13px !important;padding:3px 9px !important;font-weight:900}
 .rcard .score-ring .num{font-size:23px !important}
@@ -847,6 +850,18 @@ function hhmm2min(t){ // "0925" or 92500 -> minutes since midnight
 function secidOf(stk){ return (stk.m != null ? stk.m : (stk.code.startsWith("6") ? 1 : 0)) + "." + stk.code; }
 function is20cm(code){ return code.startsWith("30") || code.startsWith("68"); }
 function isST(name){ return /ST|st/i.test(name); }
+
+/* ===== v17.x 底层基本面风控（先于打分/排序/出卡片，命中即从涨停池剔除）=====
+   免费实时接口不含审计意见/资产冻结/诉讼等基本面，故用"高危清单"硬剔除，
+   清单在财报季/风险事件后更新；名称含 ST/*ST 同步兜底。 */
+const FUND_RISK_CODES = {
+  "002622": "核心经营资产(德伦医疗51%股权)司法冻结、账户查封；2025年报保留意见；连续亏损、累计未弥补亏损巨大，存在退市风险警示隐患"
+};
+function fundamentalRisk(s){
+  if (!s) return null;
+  if (s.name && isST(s.name)) return "ST/退市风险股";
+  return FUND_RISK_CODES[s.code] || null;
+}
 function ztThreshold(stk){ return is20cm(stk.code) ? 19.4 : (isST(stk.name) ? 4.7 : 9.7); }
 
 async function jfetch(url, timeout=9000){
@@ -900,8 +915,8 @@ const state = {
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v17.1";
-const APP_VER_DATE = "2026-09-25";
+const APP_VER = "v17.2";
+const APP_VER_DATE = "2026-09-28";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
   if (d.getDay() === 0 || d.getDay() === 6) return false;
@@ -1500,6 +1515,13 @@ function mlsDigest(){
   const nt=nameThemeGroups(state.zt).map(function(n){return {word:n.word,cnt:n.cnt};});
   return {themes:themes,inds:inds,nt:nt};
 }
+function riskBoxHtml(){
+  const ex = state.riskExcluded || [];
+  if (!ex.length) return "";
+  return '<div class="fund-risk-box">🛡️ 基本面风控已在底层剔除 '+ex.length+' 只：'+
+    ex.map(function(x){return '<span class="fr-item" title="'+esc(x.reason)+'">'+esc(x.name)+' '+x.code+'</span>';}).join("")+
+    '<div class="fr-sub">悬停查看原因；此类标的不进入打板推荐 / 抢筹 / 竞价。</div></div>';
+}
 function mainLineHtml(){
   const hasNew=state.boardMap&&Object.keys(state.boardMap).length>0;
   const themes=themeLines().slice(0,4);
@@ -1521,6 +1543,7 @@ function mainLineHtml(){
   };
   let h='<div style="margin:0;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(127,127,127,0.05)">';
   h+='<div style="font-size:13.5px;font-weight:700;margin-bottom:8px">🧭 最强主线题材<span style="font-size:11px;color:var(--text3);font-weight:400">　双维度：题材链(跨行业)+行业链(大方向)，成线≥3只</span></div>';
+  h+=riskBoxHtml();
   if(!hasNew){
     // 回退旧 hybk 行业聚类
     const secAll=sectorGroups(state.zt);
@@ -3053,7 +3076,14 @@ async function refresh(){
   const inSession = isTradeTime();
   state.inSession = inSession;
   const jobs = [];
-  jobs.push(loadZTPool(date).then(p => { state.zt = p; }).catch(() => {}));
+  jobs.push(loadZTPool(date).then(p => {
+    state.riskExcluded = [];
+    state.zt = p.filter(function(s){
+      const r = fundamentalRisk(s);
+      if (r){ state.riskExcluded.push({code:s.code,name:s.name,reason:r}); return false; }
+      return true;
+    });
+  }).catch(() => {}));
   jobs.push(loadZBPool(date).then(p => { state.zb = p; }).catch(() => {}));
   // v12 大盘趋势（上证MA20/斜率/量能），每个交易日只拉一次
   if (state.mktTrendDate !== date){
