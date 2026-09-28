@@ -311,7 +311,8 @@ async function fetchRt(watch){
       const sealed=(zt>0&&bid>=zt-0.001);
       const sealAmt=(sealed&&sealVol>0)?sealVol*100*bid:0;
       const ltsz=num(r.f117);
-      return{code,name,last:num(r.f43),pct:num(r.f170),high:num(r.f44),open:num(r.f46),
+      const last=num(r.f43);
+      return{code,name,last,pct:preClose>0?(last-preClose)/preClose*100:0,high:num(r.f44),open:num(r.f46),
         preClose,zt,bid,sealVol,sealAmt,ltsz,amount:num(r.f48),r:ltsz>0?sealAmt/ltsz:0};
     }).catch(()=>null);
   });
