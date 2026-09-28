@@ -908,7 +908,7 @@ const state = {
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v17.3";
+const APP_VER = "v17.5";
 const APP_VER_DATE = "2026-09-28";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
@@ -3076,6 +3076,23 @@ function loadLatestPool(){
   }catch(e){}
 }
 function resetSkForNewDay(){ state.skFeed=[]; state.skRt={}; }
+/* v17.5 早上打开页面：若候选池不是昨天建的（昨天收盘没开页面/跨长假），主动拉昨天涨停池重算，
+   不再依赖昨天15:00后页面正好开着才生成。修连续两天同池。 */
+async function ensureFreshPool(){
+  try{
+    const today = todayStr();
+    const prev = prevTradeDate();
+    if (state.skPoolDate === today) return;
+    if (state.skPoolDate === prev) return;
+    const yest = await loadZTPool(prev);
+    if (!yest || !yest.length) return;
+    const saved = state.zt || [];
+    state.zt = yest;
+    buildCandidatePool();
+    state.zt = saved;
+    if (state.view === "strike") renderStrike();
+  }catch(e){}
+}
 
 /* ===== 数据刷新主流程 ===== */
 async function refresh(){
@@ -3706,6 +3723,7 @@ async function init(){
   autoLoadDataFile();
   $("#btnSound").classList.add("active");
   loadLatestPool();   // v16 恢复最近交易日收盘生成的候选池
+  ensureFreshPool();  // v17.5 池不是昨天建的就用昨天涨停池重算
   resetSkForNewDay(); // 清空当日实时事件流与封单状态
   tickClock();
   setInterval(tickClock, 1000);
