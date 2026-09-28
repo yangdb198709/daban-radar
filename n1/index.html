@@ -179,7 +179,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
       图例：<b class="buy">🟢 买点窗口</b>（触板抢筹 / 炸板大单回流回封，绿灯行）·
       <b class="hard">🟡 硬板封稳</b>（封单充足、连续堆单）·
       <b class="blow">🔴 炸板开板</b>（红灯停）。
-      核心阈值：封单占流通市值 <b>0.6%</b>、连续 <b>4</b> 笔零回撤递增才转黄；炸板后 <b>5秒</b> 内新增成交额 ≥<b>80万</b>、离涨停 ≤<b>0.8%</b> 判回封；14:55 后免递增；剔 ST/退市、流通市值 ≥20亿。
+      核心阈值：封单占流通市值 <b>0.6%</b>、连续 <b>4</b> 笔零回撤递增才转黄；炸板后 <b>5秒</b> 内新增成交额 ≥<b>80万</b>、离涨停 ≤<b>0.8%</b> 判回封；14:55 后免递增；剔 ST/退市及基本面高危股（资产冻结/非标审计/连续亏损）、流通市值 ≥20亿。
     </div>
   </div>
 
@@ -231,6 +231,14 @@ function mktOf(code){return code[0]==="6"?1:0;}
 function is20cm(code){return code.startsWith("30")||code.startsWith("68");}
 function isBJ(code){return code[0]==="8"||code[0]==="4"||code.startsWith("92");}
 function isSTName(name){return/ST|st/i.test(String(name));}
+/* 底层基本面风控：免费接口不含审计/冻结/诉讼，用高危清单硬剔除（清单在财报季/风险事件后更新） */
+const FUND_RISK_CODES={
+  "002622":"核心经营资产(德伦医疗51%股权)司法冻结、账户查封；2025年报保留意见；连续亏损、累计未弥补亏损巨大，存在退市风险警示隐患"
+};
+function fundamentalRisk(code,name){
+  if(isSTName(name))return "ST/退市风险股";
+  return FUND_RISK_CODES[code]||null;
+}
 function ztPriceOf(code,name,preClose){
   let coef=1.1;
   if(is20cm(code))coef=1.2;else if(isBJ(code))coef=1.3;else if(isSTName(name))coef=1.05;
@@ -313,7 +321,8 @@ function applySnapshot(rt,d,now,hm,ts){
   rt.name=d.name||rt.name;
   rt.last=d.last;rt.pct=d.pct;rt.high=d.high;rt.open=d.open;rt.preClose=d.preClose;rt.zt=d.zt;
   rt.bid=d.bid;rt.sealVol=d.sealVol;rt.sealAmt=d.sealAmt;rt.ltsz=d.ltsz;rt.amount=d.amount;rt.r=d.r;
-  if(isSTName(rt.name)){rt.filtered="ST/退市，已过滤";return;}
+  const fr=fundamentalRisk(rt.code,rt.name);
+  if(fr){rt.filtered=fr+"，已底层剔除";return;}
   if(rt.ltsz>0&&rt.ltsz<CFG.minLtsz){rt.filtered="流通市值<20亿，已过滤";return;}
   rt.filtered=null;
   const atLimit=rt.zt>0&&rt.last>=rt.zt-0.001;
