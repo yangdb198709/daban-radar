@@ -179,7 +179,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
       图例：<b class="buy">🟢 买点窗口</b>（触板抢筹 / 炸板大单回流回封，绿灯行）·
       <b class="hard">🟡 硬板封稳</b>（封单充足、连续堆单）·
       <b class="blow">🔴 炸板开板</b>（红灯停）。
-      核心阈值：封单占流通市值 <b>0.6%</b>、连续 <b>4</b> 笔零回撤递增才转黄；炸板后 <b>5秒</b> 内新增成交额 ≥<b>80万</b>、离涨停 ≤<b>0.8%</b> 判回封；14:55 后免递增；剔 ST/退市及基本面高危股（资产冻结/非标审计/连续亏损）、流通市值 ≥20亿。
+      核心阈值：封单占流通市值 ≥<b>0.3%</b>、连续 <b>4笔(约8秒)</b> 持续达标且不大幅撤单才转黄；炸板后 <b>5秒</b> 内新增成交额 ≥<b>80万</b>、离涨停 ≤<b>0.8%</b> 判回封；14:55 后免递增；剔 ST/退市及基本面高危股（资产冻结/非标审计/连续亏损）、流通市值 ≥20亿。
     </div>
   </div>
 
@@ -198,8 +198,9 @@ const UT_QT="fa5fd1943c7b386f172d6893dbfba10b";
 const ULIST="https://push2.eastmoney.com/api/qt/ulist.np/get";
 const STORE_KEY="n1_watch_v1";
 const CFG={
-  sealRatio:0.006,   // 封单占流通市值 0.6%
-  streak:4,          // 连续4笔零回撤递增
+  sealRatio:0.003,   // 封单占流通市值 0.3%（达到即有一定厚度）
+  streak:4,          // 连续4笔(约8秒)持续达标
+  peakHold:0.6,      // 当前封单≥窗口峰值60%（防大幅撤单误判硬板）
   reopenWindow:5000, // 炸板后5秒
   reopenAmt:80e4,    // 新增成交额80万
   reopenGap:0.008,   // 离涨停0.8%
@@ -341,11 +342,13 @@ function applySnapshot(rt,d,now,hm,ts){
         if(curR<CFG.sealRatio){rt.hist=[];}
         else if(tail){rt.hist=[];go(rt,"hard","尾盘封稳",ts);}
         else{
-          const prevR=rt.hist.length?rt.hist[rt.hist.length-1]:null;
-          if(prevR===null)rt.hist=[curR];
-          else if(curR>prevR)rt.hist.push(curR);
-          else rt.hist=[curR];
-          if(rt.hist.length>=CFG.streak){rt.hist=[];go(rt,"hard","连续堆单封稳",ts);}
+          // 已达厚度门槛：累计持续达标笔数，容忍持平/小幅波动，仅防大幅撤单
+          rt.hist.push(curR);
+          if(rt.hist.length>CFG.streak)rt.hist.shift();
+          const peak=Math.max.apply(null,rt.hist);
+          if(rt.hist.length>=CFG.streak && curR>=peak*CFG.peakHold){
+            rt.hist=[];go(rt,"hard","封单持续封稳",ts);
+          }
         }
       }
       break;
