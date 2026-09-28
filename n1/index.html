@@ -257,9 +257,10 @@ function parseWatch(text){
   const out=[];const seen={};
   String(text||"").split(/\r?\n/).forEach(line=>{
     if(!line || !/\d{6}/.test(line))return;
-    const cm=line.match(/(?:^|[^0-9])(\d{6})(?:[^0-9]|$)/);
-    if(!cm)return;
-    const code=cm[1];
+    // 提取该行内全部6位代码（支持一行空格/逗号粘贴多个代码）
+    const codes=[];let _m;const _re=/(?:^|\D)(\d{6})(?=\D|$)/g;
+    while((_m=_re.exec(line))!==null)codes.push(_m[1]);
+    if(!codes.length)return;
     const cols=line.split(/[,\t;，；｜|]/).map(s=>s.trim()).filter(Boolean);
     let name="";const notes=[];
     const HEADW=/名称|备注|理由|目标|代码|股票|证券|板块|成本|序号/;
@@ -270,8 +271,10 @@ function parseWatch(text){
       if(!name && /^[一-龥]{2,6}$/.test(zh) && !HEADW.test(c))name=zh;
       else if(c.replace(/[名称备注理由目标价代码股票证券板块成本序号:：\s]/g,""))notes.push(c);
     });
-    if(seen[code])return;seen[code]=1;
-    out.push({code,name:name||"",note:notes.join("；")});
+    codes.forEach(code=>{
+      if(seen[code])return;seen[code]=1;
+      out.push({code,name:name||"",note:notes.join("；")});
+    });
   });
   return out;
 }
