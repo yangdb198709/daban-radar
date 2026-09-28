@@ -293,32 +293,40 @@ function removeWatch(code){
   saveWatch();
 }
 
-/* ============ 实时取数：批量 ulist 不返回五档，改为逐只并发 stock/get ============ */
+/* ============ 实时取数：ulist.np 批量实时价 + 涨停池取封单额（均为浏览器可跨域接口） ============ */
 async function fetchRt(watch){
   if(!watch.length)return{};
-  // 五档盘口仅在「默认字段集」返回，故请求不带 fields；买一价 f19 / 买一量 f20 = 涨停封单
-  const tasks=watch.map(w=>{
-    const secid=mktOf(w.code)+"."+w.code;
-    const url="https://push2.eastmoney.com/api/qt/stock/get?ut="+UT_QT+"&secid="+secid+"&fltt=2&invt=2";
-    return jfetch(url,8000).then(j=>{
-      const r=(j&&j.data)||null;
-      if(!r)return null;
-      const code=String(r.f57||w.code);
-      const preClose=num(r.f60);
-      const name=String(r.f58||"");
-      const bid=num(r.f19),sealVol=num(r.f20);
-      const zt=preClose>0?ztPriceOf(code,name,preClose):0;
-      const sealed=(zt>0&&bid>=zt-0.001);
-      const sealAmt=(sealed&&sealVol>0)?sealVol*100*bid:0;
-      const ltsz=num(r.f117);
-      const last=num(r.f43);
-      return{code,name,last,pct:preClose>0?(last-preClose)/preClose*100:0,high:num(r.f44),open:num(r.f46),
-        preClose,zt,bid,sealVol,sealAmt,ltsz,amount:num(r.f48),r:ltsz>0?sealAmt/ltsz:0};
-    }).catch(()=>null);
-  });
-  const res=await Promise.all(tasks);
+  const secids=watch.map(w=>mktOf(w.code)+"."+w.code).join(",");
+  const nowd=new Date();
+  const date=nowd.getFullYear()+String(nowd.getMonth()+1).padStart(2,"0")+String(nowd.getDate()).padStart(2,"0");
+  // 批量行情：最新 f2 / 涨跌幅 f3 / 代码 f12 / 名称 f14 / 昨收 f18 / 流通市值 f21 / 买一价 f31 / 成交额 f48
+  const uurl="https://push2delay.eastmoney.com/api/qt/ulist.np/get?ut="+UT_QT+"&fltt=2&invt=2&secids="+secids+
+    "&fields=f2,f3,f12,f14,f18,f21,f31,f48";
+  // 涨停池：fund=封单额 / zbc=炸板次数 / lbc=连板数（东财实时维护）
+  const zturl="https://push2ex.eastmoney.com/getTopicZTPool?ut=7eea3edcaed734bea9cbfc24409ed989&dpt=wz.ztzt&Pageindex=0&pagesize=400&sort=fbt:asc&date="+date;
+  const [uj,ztj]=await Promise.all([
+    jfetch(uurl,8000).catch(()=>null),
+    jfetch(zturl,8000).catch(()=>null)
+  ]);
+  const zt={};
+  ((ztj&&ztj.data&&ztj.data.pool)||[]).forEach(function(x){zt[x.c]=x;});
   const out={};
-  res.forEach(d=>{if(d)out[d.code]=d;});
+  ((uj&&uj.data&&uj.data.diff)||[]).forEach(function(r){
+    const code=String(r.f12);
+    const preClose=num(r.f18);
+    const name=String(r.f14||"");
+    const last=num(r.f2);
+    const ltsz=num(r.f21);
+    const amount=num(r.f48);
+    const bid=num(r.f31);
+    const ztP=preClose>0?ztPriceOf(code,name,preClose):0;
+    const z=zt[code];
+    const sealAmt=z?num(z.fund):0;
+    out[code]={code,name,last,pct:num(r.f3),high:0,open:0,
+      preClose,zt:ztP,bid,sealVol:0,sealAmt:sealAmt,ltsz:ltsz,amount:amount,
+      r:ltsz>0?sealAmt/ltsz:0,
+      lbc:z?num(z.lbc):0,zbc:z?num(z.zbc):0};
+  });
   return out;
 }
 
