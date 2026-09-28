@@ -169,6 +169,9 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
     <input type="file" id="fileInput" accept=".csv,.txt" hidden>
     <button class="btn" id="btnTemplate">下载模板</button>
     <button class="btn" id="btnExport">导出自选</button>
+    <button class="btn" id="btnPackExport">📦 备份数据包</button>
+    <button class="btn" id="btnPackImport">📂 恢复数据包</button>
+    <input type="file" id="packFile" accept=".json" hidden>
     <button class="btn danger" id="btnClear">清空</button>
     <div class="add-wrap">
       <input id="addInput" placeholder="输入/粘贴6位代码，多个用逗号或换行分隔">
@@ -534,6 +537,24 @@ function bind(){
     "代码,名称,备注\n600000,示例银行,看好理由写这里\n000001,示例,目标价/板块/逻辑\n");
   $("#btnExport").onclick=()=>downloadBlob("n1-pool.csv",
     "代码,名称,备注\n"+state.watch.map(w=>[w.code,w.name,w.note].map(csvCell).join(",")).join("\n"));
+  $("#btnPackExport").onclick=()=>{
+    const d=new Date();
+    const nm="n2-backup-"+d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"-"+pad(d.getHours())+pad(d.getMinutes())+".json";
+    const pack={app:"n2-daban",ver:2,savedAt:d.toISOString(),watch:state.watch,feed:state.feed||[]};
+    downloadBlob(nm,JSON.stringify(pack,null,1));
+  };
+  $("#btnPackImport").onclick=()=>$("#packFile").click();
+  $("#packFile").onchange=e=>{const f=e.target.files[0];if(f){
+    const rd=new FileReader();
+    rd.onload=()=>{try{
+      const p=JSON.parse(String(rd.result||""));
+      if(!p||!Array.isArray(p.watch)){alert("数据包格式不对，需用本页「备份数据包」导出的 json");return;}
+      state.watch=p.watch;state.rt={};state.feed=Array.isArray(p.feed)?p.feed:[];
+      saveWatch();const nd=new Date();renderAll(hmOf(nd),nd);
+      alert("已恢复 "+p.watch.length+" 只自选票"+(state.feed.length?"，时间线 "+state.feed.length+" 条":""));
+    }catch(err){alert("解析失败："+err.message);}
+    e.target.value="";};
+    rd.readAsText(f,"utf-8");}};
   $("#btnClear").onclick=()=>{if(confirm("确认清空全部自选票？")){state.watch=[];state.rt={};saveWatch();}};
   const doAdd=()=>{const v=$("#addInput").value;if(v.trim()){mergeWatch(parseWatch(v));$("#addInput").value="";}};
   $("#btnAdd").onclick=doAdd;
