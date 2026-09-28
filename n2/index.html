@@ -504,9 +504,14 @@ let busy=false;
 async function loop(){
   if(busy)return;busy=true;
   const d=new Date(),hm=hmOf(d),wd=d.getDay();
-  const inSession=wd>=1&&wd<=5&&hm>=9*60+15&&hm<=15*60+5;
+  const isWd=wd>=1&&wd<=5;
+  const inSession=isWd&&hm>=9*60+15&&hm<=15*60+5;
+  // 收盘后：再连续拉若干次，取收盘最终快照并让状态机收敛（页面在收盘后才打开/刷新也能看到今日结果）
+  const afterClose=isWd&&hm>15*60+5;
+  const doFetch=(inSession&&state.watch.length)||
+    (afterClose&&state.watch.length&&(state.closeTicks||0)<8);
   try{
-    if(inSession&&state.watch.length){
+    if(doFetch){
       state.polling=true;
       let data=null;try{data=await fetchRt(state.watch);}catch(e){data=null;}
       if(data){
@@ -516,6 +521,7 @@ async function loop(){
           if(data[w.code])applySnapshot(state.rt[w.code],data[w.code],now,hm,ts);
         });
       }
+      if(afterClose)state.closeTicks=(state.closeTicks||0)+1;
     }else state.polling=false;
     renderAll(hm,d);
   }finally{busy=false;}
