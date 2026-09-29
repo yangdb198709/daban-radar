@@ -905,6 +905,7 @@ const state = {
   secLeader: {}, // v12 板块龙头 code -> {role:'top'|'sec', sec, lbc}
   boardMap: {}, // v15 板块归属 code -> {bigInd:{code,name}, concepts:[{code,name}]}
   skPool: [], skRt: {}, skFeed: [], skPolling: false, skPoolDate: null, skPollTimer: null, // v16 抢筹：候选池/实时封单/事件流/轮询
+  rushMap: {}, rush30: {}, // v17.5.3 涨幅榜急拉扫描：低点记录 / 已触发急拉标记
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
@@ -1291,7 +1292,7 @@ function strikeGrade(s){
   const blowVol  = hs > 30;
   const thinSeal = fund > 0 && fund < 200e4;
   const lateSeal = fbtMin > 810;
-  const rushBoard = (fbtMin >= 570 && fbtMin <= 600 && zbc === 0);
+  const rushBoard = !!(state.rush30 && state.rush30[s.code]);
   let g, why;
   if (oneWord) { g="S"; why="一字/T字板·换手仅"+hs.toFixed(1)+"%·0开板，排不进，只观察不追"; }
   else if (hugeSeal) { g="S"; why="封单"+(fund/1e8).toFixed(2)+"亿·铁板排不进，只看不排"; }
@@ -1299,14 +1300,15 @@ function strikeGrade(s){
   else if (blowVol) { g="B"; why="换手"+hs.toFixed(0)+"%·爆量分歧，接力风险大，放弃"; }
   else if (lateSeal) { g="B"; why=fmtTime(s.fbt)+"才封·尾盘偷袭溢价弱，放弃"; }
   else {
-    const goodTime = fbtMin <= 630;
+    const goodTime = fbtMin <= 590;
     const goodHs   = hs >= 3 && hs <= 25;
-    if (goodTime && zbc <= 1 && goodHs) {
-      g="A"; why=(rushBoard?"⚡早盘急拉硬板·":"")+"封单"+(fund/1e4).toFixed(0)+"万·"+fmtTime(s.fbt)+"封·"+(zbc===0?"一次封死":"开板1次速回封")+(thinSeal?"·封单偏薄":"")+"，可排队打";
+    if (rushBoard && goodTime && zbc <= 1 && goodHs) {
+      g="A"; why="⚡急拉硬板·封单"+(fund/1e4).toFixed(0)+"万·"+fmtTime(s.fbt)+"封·"+(zbc===0?"一次封死":"开板1次速回封")+(thinSeal?"·封单偏薄":"")+"，可排队打";
     } else {
       g="B"; const w=[];
-      if(!goodTime) w.push("封板偏晚");
-      if(!goodHs) w.push(hs<3 ? "换手"+hs.toFixed(1)+"%偏低偏一字" : "换手"+hs.toFixed(0)+"%偏大易炸");
+      if(!rushBoard) w.push("非急拉板");
+      if(!goodTime) w.push("9:50后封板");
+      if(!goodHs) w.push(hs<3 ? "换手"+hs.toFixed(1)+"%偏低" : "换手"+hs.toFixed(0)+"%偏大易炸");
       why=w.join("·")+"，不在最佳击球区，放弃";
     }
   }
@@ -2792,6 +2794,30 @@ async function skFetchRt(pool){
 }
 
 /* ---------- 模块二：轮询状态机 ---------- */
+/* ---------- v17.5.3 涨幅榜急拉探测器：30秒内 +3%以下跳到 +7%以上 = 急拉板 ---------- */
+async function scanRush(){
+  try{
+    const _hm=new Date().getHours()*60+new Date().getMinutes(); if(!((_hm>=570&&_hm<=690)||(_hm>=780&&_hm<=900))) return;
+    const url="https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=400&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f3,f12,f14";
+    const j=await jfetch(url,6000);
+    const rows=((j.data&&j.data.diff)||[]);
+    const now=Date.now(), hm=curHHMM();
+    for(const r of rows){
+      const code=r.f12, pct=numOr(r.f3);
+      if(pct<2||pct>9.6) continue;
+      if(pct<3){
+        state.rushMap[code]={lowPct:pct,lowT:now};
+      }else if(pct>=7){
+        const e=state.rushMap[code];
+        if(e && e.lowPct<3 && (now-e.lowT)<=30000 && !state.rush30[code]){
+          state.rush30[code]=true;
+          addFeed({type:"rush",code:code,name:r.f14,time:hm,txt:"⚡急拉 "+pct.toFixed(1)+"%：30秒内从低位急拉，盯封板挂单，封单<1亿可排队"});
+          try{ if(state.view==="strike") renderStrike(); }catch(_){}
+        }
+      }
+    }
+  }catch(e){}
+}
 async function strikePoll(){
   const pool=state.skPool; if(!pool||!pool.length)return;
   let rt; try{rt=await skFetchRt(pool);}catch(e){return;}
@@ -3736,6 +3762,7 @@ async function init(){
   maybeClosePoolSnap();
   setInterval(maybeClosePoolSnap, 60*1000);
   setInterval(() => { if (state.view === "auction") refreshAuction().catch(()=>{}); }, 60*1000);
+  setInterval(() => { scanRush().catch(()=>{}); }, 3000); // v17.5.3 急拉探测器
   await refresh();
   manageStrikePoll(); // refresh 可能已建池，盘中据此启动抢筹轮询
   renderStrike();
