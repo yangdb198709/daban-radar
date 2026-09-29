@@ -1844,7 +1844,7 @@ function renderRecommend(){
       </div>`;
     })()) : "";
 
-  $("#recGrid").innerHTML = recEmpty || recs.map((x, i) => {
+  const recCard=(x,i)=>{
         const s = x.s; const v = x.sc.scores[x.mode];
         const tagCls = s.lbc >= 4 ? "lb4" : s.lbc >= 3 ? "lb3" : s.lbc === 2 ? "lb2" : "lb1";
         const heightTag = s.lbc === 1
@@ -1907,7 +1907,15 @@ function renderRecommend(){
           <div class="reasons">${reasonHtml}</div>
           ${boardNote}
         </div>`;
-      }).join("");
+};
+
+  const mainRecs = recs.filter(x => x.kg.g === "A");
+  const sideRecs = recs.filter(x => x.kg.g !== "A");
+  let sideHtml = "";
+  if (sideRecs.length) {
+    sideHtml = '<details class="side-fold" style="margin-top:14px"><summary style="cursor:pointer;padding:9px 12px;background:var(--panel2);border-radius:8px;font-weight:700;font-size:13px;color:var(--gold)">📊 今日龙头全景 · S观察/B易炸 ' + sideRecs.length + ' 家（点开展开，非可打）</summary><div class="grid" style="margin-top:10px">' + sideRecs.map((x,i)=>recCard(x,i)).join("") + '</div></details>';
+  }
+  $("#recGrid").innerHTML = recEmpty || ( mainRecs.map((x,i)=>recCard(x,i)).join("") + sideHtml );
 
   // tab 计数
   $("#cntSb").textContent = state.zt.filter(s => s.lbc === 1).length;
