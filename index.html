@@ -282,6 +282,9 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 .btnv.gold{border-color:var(--gold);color:var(--gold);background:var(--gold-bg)}
 .study-row{display:flex;gap:10px;align-items:center;padding:9px 8px;border-bottom:1px solid var(--line);font-size:12.5px;flex-wrap:wrap}
 .risk-line{margin-top:6px;padding:5px 8px;border-radius:7px;background:rgba(250,173,20,.12);border:1px solid rgba(250,173,20,.45);color:#FAAD14;font-size:11.5px;font-weight:700;line-height:1.5}
+.fund-risk-box{margin:0 0 10px;padding:8px 11px;border-radius:9px;background:rgba(242,54,69,.10);border:1px solid rgba(242,54,69,.5);color:#ff6b72;font-size:12px;font-weight:700;line-height:1.7}
+.fund-risk-box .fr-item{display:inline-block;margin:2px 4px 0;padding:1px 8px;border-radius:6px;background:rgba(242,54,69,.18);color:#ff858d;font-weight:700}
+.fund-risk-box .fr-sub{font-size:10.5px;font-weight:400;color:var(--text3);margin-top:3px}
 .rcard .price{font-size:21px !important;font-weight:900}
 .rcard .win-badge{font-size:13px !important;padding:3px 9px !important;font-weight:900}
 .rcard .score-ring .num{font-size:23px !important}
@@ -418,7 +421,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
         </svg>
       </div>
       <div>
-        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v17.0</span></h1>
+        <h1>打板雷达<span id="verBadge" style="font-size:11px;font-weight:800;color:var(--blue);border:1px solid var(--blue);border-radius:6px;padding:1px 6px;margin-left:8px;vertical-align:middle;background:var(--blue-bg)">v17.2</span></h1>
         <div class="sub">A股涨停决策系统 · 实时扫描</div>
       </div>
     </div>
@@ -514,16 +517,10 @@ table.tbl{width:100%;border-collapse:collapse;font-size:12.5px;min-width:860px}
 
   <!-- ===== 连板 ===== -->
   <section class="view" id="view-lianban" hidden>
-    <div class="grid cols-2b">
-      <div>
-        <div class="sec-label">连板梯队分布</div>
-        <div class="panel"><div class="ladder" id="ladderBox"></div></div>
-      </div>
-      <div>
-        <div class="sec-label">连板股列表（按高度与评分）</div>
-        <div class="grid cards" id="lbGrid"></div>
-      </div>
-    </div>
+    <div class="sec-label">连板梯队分布</div>
+    <div class="panel"><div class="ladder" id="ladderBox"></div></div>
+    <div class="sec-label">连板股列表（按高度与评分 · 横向卡片）</div>
+    <div class="grid cards" id="lbGrid"></div>
   </section>
 
   <!-- ===== 龙头 ===== -->
@@ -847,6 +844,18 @@ function hhmm2min(t){ // "0925" or 92500 -> minutes since midnight
 function secidOf(stk){ return (stk.m != null ? stk.m : (stk.code.startsWith("6") ? 1 : 0)) + "." + stk.code; }
 function is20cm(code){ return code.startsWith("30") || code.startsWith("68"); }
 function isST(name){ return /ST|st/i.test(name); }
+
+/* ===== v17.x 底层基本面风控（先于打分/排序/出卡片，命中即从涨停池剔除）=====
+   免费实时接口不含审计意见/资产冻结/诉讼等基本面，故用"高危清单"硬剔除，
+   清单在财报季/风险事件后更新；名称含 ST/*ST 同步兜底。 */
+const FUND_RISK_CODES = {
+  "002622": "核心经营资产(德伦医疗51%股权)司法冻结、账户查封；2025年报保留意见；连续亏损、累计未弥补亏损巨大，存在退市风险警示隐患"
+};
+function fundamentalRisk(s){
+  if (!s) return null;
+  if (s.name && isST(s.name)) return "ST/退市风险股";
+  return FUND_RISK_CODES[s.code] || null;
+}
 function ztThreshold(stk){ return is20cm(stk.code) ? 19.4 : (isST(stk.name) ? 4.7 : 9.7); }
 
 async function jfetch(url, timeout=9000){
@@ -864,10 +873,9 @@ function todayStr(d=new Date()){
 }
 function prevTradeDate(base=new Date()){
   let d = new Date(base);
-  for (let i = 0; i < 12; i++){
+  for (let i = 0; i < 25; i++){
     d.setDate(d.getDate() - 1);
-    const w = d.getDay();
-    if (w !== 0 && w !== 6) return todayStr(d);
+    if (isTradeDay(d)) return todayStr(d);
   }
   return todayStr(base);
 }
@@ -897,11 +905,12 @@ const state = {
   secLeader: {}, // v12 板块龙头 code -> {role:'top'|'sec', sec, lbc}
   boardMap: {}, // v15 板块归属 code -> {bigInd:{code,name}, concepts:[{code,name}]}
   skPool: [], skRt: {}, skFeed: [], skPolling: false, skPoolDate: null, skPollTimer: null, // v16 抢筹：候选池/实时封单/事件流/轮询
+  rushMap: {}, rush30: {}, // v17.5.3 涨幅榜急拉扫描：低点记录 / 已触发急拉标记
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v17.1";
-const APP_VER_DATE = "2026-09-25";
+const APP_VER = "v17.6";
+const APP_VER_DATE = "2026-09-28";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
   if (d.getDay() === 0 || d.getDay() === 6) return false;
@@ -1272,38 +1281,39 @@ function scoreStock(s, secMap){
 function strikeGrade(s){
   const fbtMin = hhmm2min(s.fbt);
   const hs = s.hs || 0, zbc = s.zbc || 0, zdp = s.zdp || 0;
-  const sealPct = (s.fund && s.ltsz) ? s.fund / s.ltsz * 100 : null;  // 封单占流通市值%
-  const fundAmt = (s.fund && s.amount) ? s.fund / s.amount : null;     // 封单/今日成交(倍)
+  const fund = s.fund || 0;
+  const sealPct = (s.fund && s.ltsz) ? s.fund / s.ltsz * 100 : null;
+  const fundAmt = (s.fund && s.amount) ? s.fund / s.amount : null;
   const th = ztThreshold(s);
   const sealedNow = zdp >= th - 0.3;
-  const oneWord  = sealedNow && hs < 2 && zbc === 0 && fbtMin <= 578;  // 9:38前封死+换手<2%+0开板=一字/T字
-  const hugeSeal = sealPct != null && sealPct >= 6;                    // 封单占流通6%+巨单
-  const reOpen   = zbc >= 2;                                           // 反复撬板
-  const blowVol  = hs > 30;                                            // 爆量分歧
-  const weakSeal = sealPct != null && sealPct < 0.7;                   // 封单太薄
-  const lateSeal = fbtMin > 810;                                       // 14:00后偷袭
+  const oneWord  = sealedNow && hs < 2 && zbc === 0 && fbtMin <= 578;
+  const hugeSeal = fund >= 1e8;
+  const reOpen   = zbc >= 2;
+  const blowVol  = hs > 30;
+  const thinSeal = fund > 0 && fund < 200e4;
+  const lateSeal = fbtMin > 810;
+  const rushBoard = !!(state.rush30 && state.rush30[s.code]);
   let g, why;
   if (oneWord) { g="S"; why="一字/T字板·换手仅"+hs.toFixed(1)+"%·0开板，排不进，只观察不追"; }
-  else if (hugeSeal) { g="S"; why="封单占流通市值"+sealPct.toFixed(1)+"%·巨单封死难成交，只观察"; }
+  else if (hugeSeal) { g="S"; why="封单"+(fund/1e8).toFixed(2)+"亿·铁板排不进，只看不排"; }
   else if (reOpen) { g="B"; why=zbc+"次开板·反复撬板，回封无力易炸，放弃"; }
   else if (blowVol) { g="B"; why="换手"+hs.toFixed(0)+"%·爆量分歧，接力风险大，放弃"; }
-  else if (weakSeal) { g="B"; why="封单仅占流通"+sealPct.toFixed(1)+"%·封单太薄一碰就开，放弃"; }
   else if (lateSeal) { g="B"; why=fmtTime(s.fbt)+"才封·尾盘偷袭溢价弱，放弃"; }
+  else if (thinSeal) { g="B"; why="封单"+(fund/1e4).toFixed(0)+"万·<2000万太薄易炸，放弃"; }
   else {
-    const goodTime = fbtMin <= 630;                                    // 10:30前
-    const goodHs   = hs >= 3 && hs <= 25;                              // 健康换手：买得到又不爆量
-    const goodSeal = sealPct == null ? true : sealPct >= 1.2;          // 封单中等偏厚
-    if (goodTime && zbc <= 1 && goodHs && goodSeal) {
-      g="A"; why="换手"+hs.toFixed(1)+"%·"+fmtTime(s.fbt)+"封·"+(zbc===0?"一次封死":"开板1次速回封")+"，封单适中，回封可排队";
+    const goodTime = fbtMin <= 590;
+    const goodHs   = hs >= 3 && hs <= 25;
+    if (rushBoard && goodTime && zbc <= 1 && goodHs) {
+      g="A"; why="⚡急拉硬板·封单"+(fund/1e4).toFixed(0)+"万·"+fmtTime(s.fbt)+"封·"+(zbc===0?"一次封死":"开板1次速回封")+"，可排队打";
     } else {
       g="B"; const w=[];
-      if(!goodTime) w.push("封板偏晚");
-      if(!goodHs) w.push(hs<3 ? "换手"+hs.toFixed(1)+"%偏低偏一字买不进" : "换手"+hs.toFixed(0)+"%偏大易炸");
-      if(!goodSeal) w.push("封单偏薄");
+      if(!rushBoard) w.push(fbtMin<=575 && zbc===0 ? "⚡高开秒板封太快·只观察买不进" : "非急拉板");
+      if(!goodTime) w.push("9:50后封板");
+      if(!goodHs) w.push(hs<3 ? "换手"+hs.toFixed(1)+"%偏低" : "换手"+hs.toFixed(0)+"%偏大易炸");
       why=w.join("·")+"，不在最佳击球区，放弃";
     }
   }
-  return { g:g, why:why, sealPct:sealPct, fundAmt:fundAmt, fbtMin:fbtMin, hs:hs, zbc:zbc };
+  return { g:g, why:why, sealPct:sealPct, fundAmt:fundAmt, fbtMin:fbtMin, hs:hs, zbc:zbc, rushBoard:rushBoard };
 }
 function gradeOf(v){ return v >= 85 ? "极强" : v >= 75 ? "强" : v >= 60 ? "中" : "弱"; }
 function gradeColor(v){ return v >= 85 ? "var(--up)" : v >= 75 ? "var(--gold)" : v >= 60 ? "var(--blue)" : "var(--text3)"; }
@@ -1500,6 +1510,13 @@ function mlsDigest(){
   const nt=nameThemeGroups(state.zt).map(function(n){return {word:n.word,cnt:n.cnt};});
   return {themes:themes,inds:inds,nt:nt};
 }
+function riskBoxHtml(){
+  const ex = state.riskExcluded || [];
+  if (!ex.length) return "";
+  return '<div class="fund-risk-box">🛡️ 基本面风控已在底层剔除 '+ex.length+' 只：'+
+    ex.map(function(x){return '<span class="fr-item" title="'+esc(x.reason)+'">'+esc(x.name)+' '+x.code+'</span>';}).join("")+
+    '<div class="fr-sub">悬停查看原因；此类标的不进入打板推荐 / 抢筹 / 竞价。</div></div>';
+}
 function mainLineHtml(){
   const hasNew=state.boardMap&&Object.keys(state.boardMap).length>0;
   const themes=themeLines().slice(0,4);
@@ -1521,6 +1538,7 @@ function mainLineHtml(){
   };
   let h='<div style="margin:0;padding:12px;border:1px solid var(--border);border-radius:12px;background:rgba(127,127,127,0.05)">';
   h+='<div style="font-size:13.5px;font-weight:700;margin-bottom:8px">🧭 最强主线题材<span style="font-size:11px;color:var(--text3);font-weight:400">　双维度：题材链(跨行业)+行业链(大方向)，成线≥3只</span></div>';
+  h+=riskBoxHtml();
   if(!hasNew){
     // 回退旧 hybk 行业聚类
     const secAll=sectorGroups(state.zt);
@@ -2343,6 +2361,20 @@ function maybeAucSnap(){
     upsertSnap(today, {auc:rows, aucTime:now.toTimeString().slice(0,5)});
   }catch(e){}
 }
+/* v17.3 收盘后把当天涨停池存本地，次日竞价即使接口偶发异常也有底池（跨周末/长假双保险） */
+function maybeClosePoolSnap(){
+  try{
+    if (!isTradeDay(new Date())) return;
+    const hm = new Date().getHours()*60 + new Date().getMinutes();
+    if (hm < 15*60+5) return;
+    if (!state.zt || !state.zt.length) return;
+    const today = studyDateStr();
+    const db = loadStudy();
+    let s = db.snaps.find(x=>x.date===today);
+    if (s && s.poolSaved) return;
+    upsertSnap(today, {ztPool: state.zt.map(function(z){ return {code:z.code,name:z.name,lbc:z.lbc,hs:z.hs,fund:z.fund,hybk:z.hybk,zbc:z.zbc,fbt:z.fbt,ltsz:z.ltsz,amount:z.amount,zdp:z.zdp}; }), poolSaved:true});
+  }catch(e){}
+}
 /* 次日自动回查：下一交易日当天用 ulist 取真实最高/收盘（精确）；漏验的用涨停池补连板（粗） */
 async function verifySnaps(){
   try{
@@ -2763,6 +2795,30 @@ async function skFetchRt(pool){
 }
 
 /* ---------- 模块二：轮询状态机 ---------- */
+/* ---------- v17.5.3 涨幅榜急拉探测器：10秒内 +3%以下跳到 +7%以上 = 急拉板 ---------- */
+async function scanRush(){
+  try{
+    const _hm=new Date().getHours()*60+new Date().getMinutes(); if(!((_hm>=570&&_hm<=690)||(_hm>=780&&_hm<=900))) return;
+    const url="https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=400&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f3,f12,f14";
+    const j=await jfetch(url,6000);
+    const rows=((j.data&&j.data.diff)||[]);
+    const now=Date.now(), hm=curHHMM();
+    for(const r of rows){
+      const code=r.f12, pct=numOr(r.f3);
+      if(pct<2||pct>9.6) continue;
+      if(pct<7){
+        state.rushMap[code]={lowPct:pct,lowT:now};
+      }else if(pct>=7){
+        const e=state.rushMap[code];
+        if(e && (pct-e.lowPct)>=3 && (now-e.lowT)<=10000 && !state.rush30[code]){
+          state.rush30[code]=true;
+          addFeed({type:"rush",code:code,name:r.f14,time:hm,txt:"⚡急拉 "+pct.toFixed(1)+"%：10秒内从低位急拉，盯封板挂单，封单<1亿可排队"});
+          try{ if(state.view==="strike") renderStrike(); }catch(_){}
+        }
+      }
+    }
+  }catch(e){}
+}
 async function strikePoll(){
   const pool=state.skPool; if(!pool||!pool.length)return;
   let rt; try{rt=await skFetchRt(pool);}catch(e){return;}
@@ -3046,6 +3102,23 @@ function loadLatestPool(){
   }catch(e){}
 }
 function resetSkForNewDay(){ state.skFeed=[]; state.skRt={}; }
+/* v17.5 早上打开页面：若候选池不是昨天建的（昨天收盘没开页面/跨长假），主动拉昨天涨停池重算，
+   不再依赖昨天15:00后页面正好开着才生成。修连续两天同池。 */
+async function ensureFreshPool(){
+  try{
+    const today = todayStr();
+    const prev = prevTradeDate();
+    if (state.skPoolDate === today) return;
+    if (state.skPoolDate === prev && (state.skPool||[]).some(function(p){return typeof p.sk==='number';})) return;
+    const yest = await loadZTPool(prev);
+    if (!yest || !yest.length) return;
+    const saved = state.zt || [];
+    state.zt = yest;
+    buildCandidatePool();
+    state.zt = saved;
+    if (state.view === "strike") renderStrike();
+  }catch(e){}
+}
 
 /* ===== 数据刷新主流程 ===== */
 async function refresh(){
@@ -3053,7 +3126,14 @@ async function refresh(){
   const inSession = isTradeTime();
   state.inSession = inSession;
   const jobs = [];
-  jobs.push(loadZTPool(date).then(p => { state.zt = p; }).catch(() => {}));
+  jobs.push(loadZTPool(date).then(p => {
+    state.riskExcluded = [];
+    state.zt = p.filter(function(s){
+      const r = fundamentalRisk(s);
+      if (r){ state.riskExcluded.push({code:s.code,name:s.name,reason:r}); return false; }
+      return true;
+    });
+  }).catch(() => {}));
   jobs.push(loadZBPool(date).then(p => { state.zb = p; }).catch(() => {}));
   // v12 大盘趋势（上证MA20/斜率/量能），每个交易日只拉一次
   if (state.mktTrendDate !== date){
@@ -3312,10 +3392,39 @@ function auctionPhase(){
 }
 async function loadAuctionWatch(){
   const date = prevTradeDate();
-  const pool = await loadZTPool(date);
+  let pool = await loadZTPool(date);
+  if (!pool || !pool.length){
+    // v17.3 跨周末/长假/接口异常兜底：读本地存的上一交易日涨停池快照
+    try{
+      const db = loadStudy();
+      const dStr = String(date).slice(0,4)+"-"+String(date).slice(4,6)+"-"+String(date).slice(6,8);
+      const sn = db.snaps.find(x=>x.date===dStr);
+      if (sn && sn.ztPool && sn.ztPool.length) pool = sn.ztPool;
+    }catch(e){}
+  }
   if (!pool || !pool.length) return { date, rows:[], env:null };
-  // v10.2：观察范围放开到全部连板（含最高标/一字），上限220只
-  const focus = pool.filter(s => (s.lbc||1) >= 1).slice(0, 220);
+  // v17.3：三道闸精选接力观察池（不再全量220只，手机一眼看完）
+  // 闸1 板块梯队统计：统计每个行业当天涨停家数
+  var secCnt = {};
+  pool.forEach(function(s){ var k = s.hybk || '其他'; secCnt[k] = (secCnt[k]||0) + 1; });
+  // 高危退市/ST 代码黑名单（如皓宸医疗002622）
+  var FUND_RISK_CODES = {"002622":1};
+  var focus = pool.filter(function(s){
+    if (FUND_RISK_CODES[s.code]) return false;                 // 高危风险股
+    if (/ST|退/i.test(s.name||'')) return false;               // ST/退市
+    if ((s.ltsz||0) < 20e8) return false;                      // 流通市值<20亿
+    if ((s.zbc||0) >= 2) return false;                          // 炸≥2次烂板直接踢
+    if ((s.hs||0) < 3 || (s.hs||0) > 35) return false;          // 昨换手3%~35%
+    if ((s.lbc||1) <= 3 && (secCnt[s.hybk||'其他']||0) < 2) return false; // 中位票需板块梯队，高标独苗保留
+    return true;
+  });
+  // 排序：2-3板黄金接力身位最前；首板排最后（博2板胜率低）；高标按高度
+  focus.sort(function(a,b){
+    var sa = Math.abs((a.lbc||1) - 2.5), sb = Math.abs((b.lbc||1) - 2.5);
+    if (sa !== sb) return sa - sb;
+    return (b.lbc||1) - (a.lbc||1);
+  });
+  focus = focus.slice(0, 15);
   const rows = [];
   for (let i = 0; i < focus.length; i += 40){
     const batch = focus.slice(i, i+40);
@@ -3640,6 +3749,7 @@ async function init(){
   autoLoadDataFile();
   $("#btnSound").classList.add("active");
   loadLatestPool();   // v16 恢复最近交易日收盘生成的候选池
+  ensureFreshPool();  // v17.5 池不是昨天建的就用昨天涨停池重算
   resetSkForNewDay(); // 清空当日实时事件流与封单状态
   tickClock();
   setInterval(tickClock, 1000);
@@ -3650,7 +3760,10 @@ async function init(){
   renderAuction().catch(()=>{});
   verifySnaps().catch(()=>{});
   setInterval(() => { verifySnaps().catch(()=>{}); }, 10*60*1000);
+  maybeClosePoolSnap();
+  setInterval(maybeClosePoolSnap, 60*1000);
   setInterval(() => { if (state.view === "auction") refreshAuction().catch(()=>{}); }, 60*1000);
+  setInterval(() => { scanRush().catch(()=>{}); }, 3000); // v17.5.3 急拉探测器
   await refresh();
   manageStrikePoll(); // refresh 可能已建池，盘中据此启动抢筹轮询
   renderStrike();
