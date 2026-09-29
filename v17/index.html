@@ -1280,38 +1280,37 @@ function scoreStock(s, secMap){
 function strikeGrade(s){
   const fbtMin = hhmm2min(s.fbt);
   const hs = s.hs || 0, zbc = s.zbc || 0, zdp = s.zdp || 0;
-  const sealPct = (s.fund && s.ltsz) ? s.fund / s.ltsz * 100 : null;  // 封单占流通市值%
-  const fundAmt = (s.fund && s.amount) ? s.fund / s.amount : null;     // 封单/今日成交(倍)
+  const fund = s.fund || 0;
+  const sealPct = (s.fund && s.ltsz) ? s.fund / s.ltsz * 100 : null;
+  const fundAmt = (s.fund && s.amount) ? s.fund / s.amount : null;
   const th = ztThreshold(s);
   const sealedNow = zdp >= th - 0.3;
-  const oneWord  = sealedNow && hs < 2 && zbc === 0 && fbtMin <= 578;  // 9:38前封死+换手<2%+0开板=一字/T字
-  const hugeSeal = sealPct != null && sealPct >= 6;                    // 封单占流通6%+巨单
-  const reOpen   = zbc >= 2;                                           // 反复撬板
-  const blowVol  = hs > 30;                                            // 爆量分歧
-  const weakSeal = sealPct != null && sealPct < 0.7;                   // 封单太薄
-  const lateSeal = fbtMin > 810;                                       // 14:00后偷袭
+  const oneWord  = sealedNow && hs < 2 && zbc === 0 && fbtMin <= 578;
+  const hugeSeal = fund >= 1e8;
+  const reOpen   = zbc >= 2;
+  const blowVol  = hs > 30;
+  const thinSeal = fund > 0 && fund < 200e4;
+  const lateSeal = fbtMin > 810;
+  const rushBoard = (fbtMin >= 570 && fbtMin <= 600 && zbc === 0);
   let g, why;
   if (oneWord) { g="S"; why="一字/T字板·换手仅"+hs.toFixed(1)+"%·0开板，排不进，只观察不追"; }
-  else if (hugeSeal) { g="S"; why="封单占流通市值"+sealPct.toFixed(1)+"%·巨单封死难成交，只观察"; }
+  else if (hugeSeal) { g="S"; why="封单"+(fund/1e8).toFixed(2)+"亿·铁板排不进，只看不排"; }
   else if (reOpen) { g="B"; why=zbc+"次开板·反复撬板，回封无力易炸，放弃"; }
   else if (blowVol) { g="B"; why="换手"+hs.toFixed(0)+"%·爆量分歧，接力风险大，放弃"; }
-  else if (weakSeal) { g="B"; why="封单仅占流通"+sealPct.toFixed(1)+"%·封单太薄一碰就开，放弃"; }
   else if (lateSeal) { g="B"; why=fmtTime(s.fbt)+"才封·尾盘偷袭溢价弱，放弃"; }
   else {
-    const goodTime = fbtMin <= 630;                                    // 10:30前
-    const goodHs   = hs >= 3 && hs <= 25;                              // 健康换手：买得到又不爆量
-    const goodSeal = sealPct == null ? true : sealPct >= 1.2;          // 封单中等偏厚
-    if (goodTime && zbc <= 1 && goodHs && goodSeal) {
-      g="A"; why="换手"+hs.toFixed(1)+"%·"+fmtTime(s.fbt)+"封·"+(zbc===0?"一次封死":"开板1次速回封")+"，封单适中，回封可排队";
+    const goodTime = fbtMin <= 630;
+    const goodHs   = hs >= 3 && hs <= 25;
+    if (goodTime && zbc <= 1 && goodHs) {
+      g="A"; why=(rushBoard?"⚡早盘急拉硬板·":"")+"封单"+(fund/1e4).toFixed(0)+"万·"+fmtTime(s.fbt)+"封·"+(zbc===0?"一次封死":"开板1次速回封")+(thinSeal?"·封单偏薄":"")+"，可排队打";
     } else {
       g="B"; const w=[];
       if(!goodTime) w.push("封板偏晚");
-      if(!goodHs) w.push(hs<3 ? "换手"+hs.toFixed(1)+"%偏低偏一字买不进" : "换手"+hs.toFixed(0)+"%偏大易炸");
-      if(!goodSeal) w.push("封单偏薄");
+      if(!goodHs) w.push(hs<3 ? "换手"+hs.toFixed(1)+"%偏低偏一字" : "换手"+hs.toFixed(0)+"%偏大易炸");
       why=w.join("·")+"，不在最佳击球区，放弃";
     }
   }
-  return { g:g, why:why, sealPct:sealPct, fundAmt:fundAmt, fbtMin:fbtMin, hs:hs, zbc:zbc };
+  return { g:g, why:why, sealPct:sealPct, fundAmt:fundAmt, fbtMin:fbtMin, hs:hs, zbc:zbc, rushBoard:rushBoard };
 }
 function gradeOf(v){ return v >= 85 ? "极强" : v >= 75 ? "强" : v >= 60 ? "中" : "弱"; }
 function gradeColor(v){ return v >= 85 ? "var(--up)" : v >= 75 ? "var(--gold)" : v >= 60 ? "var(--blue)" : "var(--text3)"; }
