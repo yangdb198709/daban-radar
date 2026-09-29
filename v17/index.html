@@ -2370,7 +2370,7 @@ function maybeClosePoolSnap(){
     const db = loadStudy();
     let s = db.snaps.find(x=>x.date===today);
     if (s && s.poolSaved) return;
-    upsertSnap(today, {pool: state.zt.map(function(z){ return {code:z.code,name:z.name,lbc:z.lbc,hs:z.hs,fund:z.fund,hybk:z.hybk,zbc:z.zbc,fbt:z.fbt,ltsz:z.ltsz,amount:z.amount,zdp:z.zdp}; }), poolSaved:true});
+    upsertSnap(today, {ztPool: state.zt.map(function(z){ return {code:z.code,name:z.name,lbc:z.lbc,hs:z.hs,fund:z.fund,hybk:z.hybk,zbc:z.zbc,fbt:z.fbt,ltsz:z.ltsz,amount:z.amount,zdp:z.zdp}; }), poolSaved:true});
   }catch(e){}
 }
 /* 次日自动回查：下一交易日当天用 ulist 取真实最高/收盘（精确）；漏验的用涨停池补连板（粗） */
@@ -3083,7 +3083,7 @@ async function ensureFreshPool(){
     const today = todayStr();
     const prev = prevTradeDate();
     if (state.skPoolDate === today) return;
-    if (state.skPoolDate === prev) return;
+    if (state.skPoolDate === prev && (state.skPool||[]).some(function(p){return typeof p.sk==='number';})) return;
     const yest = await loadZTPool(prev);
     if (!yest || !yest.length) return;
     const saved = state.zt || [];
@@ -3373,7 +3373,7 @@ async function loadAuctionWatch(){
       const db = loadStudy();
       const dStr = String(date).slice(0,4)+"-"+String(date).slice(4,6)+"-"+String(date).slice(6,8);
       const sn = db.snaps.find(x=>x.date===dStr);
-      if (sn && sn.pool && sn.pool.length) pool = sn.pool;
+      if (sn && sn.ztPool && sn.ztPool.length) pool = sn.ztPool;
     }catch(e){}
   }
   if (!pool || !pool.length) return { date, rows:[], env:null };
