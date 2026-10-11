@@ -905,12 +905,13 @@ const state = {
   secLeader: {}, // v12 板块龙头 code -> {role:'top'|'sec', sec, lbc}
   boardMap: {}, // v15 板块归属 code -> {bigInd:{code,name}, concepts:[{code,name}]}
   skPool: [], skRt: {}, skFeed: [], skPolling: false, skPoolDate: null, skPollTimer: null, // v16 抢筹：候选池/实时封单/事件流/轮询
+  skCutReasons: [], skPoolFallback: null, // v18 空池透明化：被砍原因清单 / 兜底来源日期
   rushMap: {}, rush30: {}, // v17.5.3 涨幅榜急拉扫描：低点记录 / 已触发急拉标记
 };
 
 /* ===== v12 版本与大长假节前因子 ===== */
-const APP_VER = "v17.6";
-const APP_VER_DATE = "2026-09-28";
+const APP_VER = "v18";
+const APP_VER_DATE = "2026-10-11";
 const HOLIDAYS_2026 = ["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"];
 function isTradeDay(d){
   if (d.getDay() === 0 || d.getDay() === 6) return false;
@@ -2724,15 +2725,16 @@ function buildCandidatePool(){
   else if(senti.temp>85)w2Floor=88;
   else w2Floor=88;
   const cands=[];
+  state.skCutReasons=[]; // v18 空池透明化：记录每只被砍原因
   for(const s of state.zt||[]){
     const g=strikeGrade(s);
-    if(g.g==="S"||g.g==="B") continue;
-    if(isST(s.name)) continue;
-    if(s.lbc>=6) continue;
-    if((s.zbc||0)>=3) continue;
-    if(senti.temp<55) continue;
+    if(g.g==="S"||g.g==="B"){ state.skCutReasons.push(s.name+"（"+s.code+"）：S/B档烂板或易炸"); continue; }
+    if(isST(s.name)){ state.skCutReasons.push(s.name+"（"+s.code+"）：ST/退市风险"); continue; }
+    if(s.lbc>=6){ state.skCutReasons.push(s.name+"（"+s.code+"）：连板"+s.lbc+"≥6，高位放弃"); continue; }
+    if((s.zbc||0)>=3){ state.skCutReasons.push(s.name+"（"+s.code+"）：炸板"+s.zbc+"次≥3，封板不稳"); continue; }
+    if(senti.temp<55){ state.skCutReasons.push(s.name+"（"+s.code+"）：市场温度"+senti.temp+"°<55，无抢筹环境"); continue; }
     const hq=histQualify(s,ztCount), hit=hq.hit, w2=hit?hit.w2:null;
-    if(hit&&w2<w2Floor) continue;   // 仅历史概率低于动态下限才砍；无历史样本的保留、不缩口子
+    if(hit&&w2<w2Floor){ state.skCutReasons.push(s.name+"（"+s.code+"）：历史胜率"+w2+"%<下限"+w2Floor+"%"); continue; }
     const sealAmt=numOr(s.fund), sealRatio=s.amount?sealAmt/numOr(s.amount):0;
     let lbcS=0;
     if(s.lbc>=2&&s.lbc<=4)lbcS=30;
@@ -3054,14 +3056,27 @@ function renderStrike(){
   }
   const elP=$("#skPool");
   if(elP){
-    if(!pool.length)elP.innerHTML='<div class="empty-advice"><div class="big">暂无候选</div><div class="desc">收盘后系统自动生成明日候选池；温度不足或无主线前排时<b>宁可空仓</b>。</div></div>';
+    if(!pool.length){
+      let cutHtml = '';
+      if ((state.skCutReasons||[]).length){
+        cutHtml = '<div class="sk-cut"><div class="cut-title">今日候选池被过滤光（宁缺毋滥）：</div><ul>' +
+          state.skCutReasons.slice(0,10).map(function(r){return '<li>'+esc(r)+'</li>';}).join('') + '</ul></div>';
+      }
+      let fbHtml = '';
+      if (state.skPoolFallback){
+        fbHtml = '<div class="sk-fb">已回退到 ' + esc(String(state.skPoolFallback)) + ' 的有效候选池兜底（见下方候选，仅观察、非当日信号）。</div>';
+      }
+      elP.innerHTML='<div class="empty-advice"><div class="big">暂无候选</div><div class="desc">收盘后系统自动生成明日候选池；温度不足或无主线前排时<b>宁可空仓</b>。</div></div>' + cutHtml + fbHtml;
+    }
     else{
       const sorted=[...pool].sort((a,b)=>{
         const ra=state.skRt[a.code]||{},rb=state.skRt[b.code]||{};
         const as=["first","reopen","ready"].includes(ra.phase)?1:0,bs=["first","reopen","ready"].includes(rb.phase)?1:0;
         if(as!==bs)return bs-as; return (rb.pct||0)-(ra.pct||0);
       });
-      elP.innerHTML=sorted.map(skCardHtml).join("");
+      let fbHtml = '';
+      if (state.skPoolFallback){ fbHtml = '<div class="sk-fb" style="grid-column:1/-1;margin:2px 0 6px">候选池为空已自动回退到 <b>'+esc(String(state.skPoolFallback))+'</b> 的有效池兜底（仅观察参考、非当日真实信号）。</div>'; }
+      elP.innerHTML=fbHtml+sorted.map(skCardHtml).join("");
     }
   }
   const cnt=$("#cntStrike"); if(cnt)cnt.textContent=pool.length;
@@ -3108,14 +3123,29 @@ async function ensureFreshPool(){
   try{
     const today = todayStr();
     const prev = prevTradeDate();
-    if (state.skPoolDate === today) return;
+    // v18 空池兜底：今天已建过池但被过滤光时，回退到最近一个有效候选池，保证次日开盘有票可看
+    if (state.skPoolDate === today){
+      if (!(state.skPool||[]).length){
+        const db = loadStudy();
+        const arr = (db.snaps||[]).filter(function(s){return (s.pool||[]).length;}).sort(function(a,b){return a.date<b.date?1:-1;});
+        if (arr.length){ state.skPool = arr[0].pool.map(function(p){return Object.assign({},p);}); state.skPoolFallback = arr[0].date; state.skPoolDate = today; }
+      }
+      if (state.view === "strike") renderStrike();
+      return;
+    }
     if (state.skPoolDate === prev && (state.skPool||[]).some(function(p){return typeof p.sk==='number';})) return;
     const yest = await loadZTPool(prev);
-    if (!yest || !yest.length) return;
+    if (!yest || !yest.length){ state.skCutReasons=["无法获取前一交易日("+prev+")涨停池，接口无数据"]; renderStrike(); return; }
     const saved = state.zt || [];
     state.zt = yest;
     buildCandidatePool();
     state.zt = saved;
+    // v18 空池兜底（新池也空）：同样回退最近有效池
+    if (!(state.skPool||[]).length){
+      const db = loadStudy();
+      const arr = (db.snaps||[]).filter(function(s){return (s.pool||[]).length;}).sort(function(a,b){return a.date<b.date?1:-1;});
+      if (arr.length){ state.skPool = arr[0].pool.map(function(p){return Object.assign({},p);}); state.skPoolFallback = arr[0].date; state.skPoolDate = today; }
+    }
     if (state.view === "strike") renderStrike();
   }catch(e){}
 }
