@@ -1279,7 +1279,7 @@ function scoreStock(s, secMap){
    S=一字/T字/巨单封死，排不进，只观察不挂单；
    A=换手3-25% + 10:30前封 + 封单中等偏厚 + 开板<=1，开板回封那一下唯一可排队打；
    B=反复开板/爆量>30%/薄封单/14:00后尾盘板，易炸，放弃。 */
-function strikeGrade(s){
+function strikeGrade(s, relaxA){
   const fbtMin = hhmm2min(s.fbt);
   const hs = s.hs || 0, zbc = s.zbc || 0, zdp = s.zdp || 0;
   const fund = s.fund || 0;
@@ -1304,11 +1304,17 @@ function strikeGrade(s){
   else {
     const goodTime = fbtMin <= 590;
     const goodHs   = hs >= 3 && hs <= 25;
+    // v18.1 修复：收盘后/非盘中建次日候选池时，不再强依赖盘中急拉标记(rush30)。
+    // 否则收盘后 rush30 为空，所有票被误判成"非急拉板"B档砍光 -> 候选池每天为空。
+    // 非盘中：用「封板时间合理 + 换手正常 + 炸板少 + 封单厚度足」判定A档（可打/候选）。
+    const relax = !!relaxA; // 收盘后/次日建候选池场景=放宽A档，不依赖盘中急拉标记
     if (rushBoard && goodTime && zbc <= 1 && goodHs) {
       g="A"; why="⚡急拉硬板·封单"+(fund/1e4).toFixed(0)+"万·"+fmtTime(s.fbt)+"封·"+(zbc===0?"一次封死":"开板1次速回封")+"，可排队打";
+    } else if (relax && goodHs && zbc <= 1 && fund >= 200e4) {
+      g="A"; why="盘后建池·"+fmtTime(s.fbt)+"封·换手"+hs.toFixed(1)+"%·封单"+(fund/1e4).toFixed(0)+"万·"+(zbc===0?"一次封死":"开板1次速回封")+"，可打候选";
     } else {
       g="B"; const w=[];
-      if(!rushBoard) w.push(fbtMin<=575 && zbc===0 ? "⚡高开秒板封太快·只观察买不进" : "非急拉板");
+      if(!rushBoard && !relax) w.push(fbtMin<=575 && zbc===0 ? "⚡高开秒板封太快·只观察买不进" : "非急拉板");
       if(!goodTime) w.push("9:50后封板");
       if(!goodHs) w.push(hs<3 ? "换手"+hs.toFixed(1)+"%偏低" : "换手"+hs.toFixed(0)+"%偏大易炸");
       why=w.join("·")+"，不在最佳击球区，放弃";
@@ -2727,7 +2733,7 @@ function buildCandidatePool(){
   const cands=[];
   state.skCutReasons=[]; // v18 空池透明化：记录每只被砍原因
   for(const s of state.zt||[]){
-    const g=strikeGrade(s);
+    const g=strikeGrade(s, true);
     if(g.g==="S"||g.g==="B"){ state.skCutReasons.push(s.name+"（"+s.code+"）：S/B档烂板或易炸"); continue; }
     if(isST(s.name)){ state.skCutReasons.push(s.name+"（"+s.code+"）：ST/退市风险"); continue; }
     if(s.lbc>=6){ state.skCutReasons.push(s.name+"（"+s.code+"）：连板"+s.lbc+"≥6，高位放弃"); continue; }
@@ -3119,6 +3125,17 @@ function loadLatestPool(){
 function resetSkForNewDay(){ state.skFeed=[]; state.skRt={}; }
 /* v17.5 早上打开页面：若候选池不是昨天建的（昨天收盘没开页面/跨长假），主动拉昨天涨停池重算，
    不再依赖昨天15:00后页面正好开着才生成。修连续两天同池。 */
+// v18.1 兜底时效：只回退最近 N 天内最近一个有效候选池；超期返回 null（不再回退到过期旧池）
+function recentValidPool(limitDays){
+  try{
+    const db = loadStudy();
+    const cutoff = todayStr(new Date(Date.now() - limitDays*864e5));
+    const arr = (db.snaps||[]).filter(function(s){
+      return (s.pool||[]).length && String(s.date).replace(/-/g,"") >= String(cutoff);
+    }).sort(function(a,b){return a.date<b.date?1:-1;});
+    return arr.length ? {pool:arr[0].pool, date:arr[0].date} : null;
+  }catch(e){ return null; }
+}
 async function ensureFreshPool(){
   try{
     const today = todayStr();
@@ -3126,9 +3143,8 @@ async function ensureFreshPool(){
     // v18 空池兜底：今天已建过池但被过滤光时，回退到最近一个有效候选池，保证次日开盘有票可看
     if (state.skPoolDate === today){
       if (!(state.skPool||[]).length){
-        const db = loadStudy();
-        const arr = (db.snaps||[]).filter(function(s){return (s.pool||[]).length;}).sort(function(a,b){return a.date<b.date?1:-1;});
-        if (arr.length){ state.skPool = arr[0].pool.map(function(p){return Object.assign({},p);}); state.skPoolFallback = arr[0].date; state.skPoolDate = today; }
+        const rv = recentValidPool(5);
+        if (rv){ state.skPool = rv.pool.map(function(p){return Object.assign({},p);}); state.skPoolFallback = rv.date; state.skPoolDate = today; }
       }
       if (state.view === "strike") renderStrike();
       return;
@@ -3140,11 +3156,10 @@ async function ensureFreshPool(){
     state.zt = yest;
     buildCandidatePool();
     state.zt = saved;
-    // v18 空池兜底（新池也空）：同样回退最近有效池
+    // v18.1 空池兜底（新池也空）：同样回退最近5天有效池；超期不回退，显示真实空池+砍因
     if (!(state.skPool||[]).length){
-      const db = loadStudy();
-      const arr = (db.snaps||[]).filter(function(s){return (s.pool||[]).length;}).sort(function(a,b){return a.date<b.date?1:-1;});
-      if (arr.length){ state.skPool = arr[0].pool.map(function(p){return Object.assign({},p);}); state.skPoolFallback = arr[0].date; state.skPoolDate = today; }
+      const rv = recentValidPool(5);
+      if (rv){ state.skPool = rv.pool.map(function(p){return Object.assign({},p);}); state.skPoolFallback = rv.date; state.skPoolDate = today; }
     }
     if (state.view === "strike") renderStrike();
   }catch(e){}
